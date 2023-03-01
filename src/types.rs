@@ -5,27 +5,27 @@ pub type Value = String; // TODO: different type?, maybe json?
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeyValue {
-    key: Key,
-    value: Value,
+    pub key: Key,
+    pub value: Value,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetResponse {
-    key: Key,
-    prev_value: Option<Value>
+    pub key: Key,
+    pub value: Option<Value>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PutRequest {
-    key: Key,
-    value: Value,
-    lease: i64,
-    prev_kv: bool,
-    ignore_value: bool,
-    ignore_lease: bool,
+    pub key: Key,
+    pub value: Value,
+    pub lease: i64,
+    pub prev_kv: bool,
+    pub ignore_value: bool,
+    pub ignore_lease: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PutResponse {
-    prev_kv: Option<KeyValue>
+    pub prev_kv: Option<KeyValue>
 }

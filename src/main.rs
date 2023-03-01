@@ -6,6 +6,7 @@ use std::{env, net::{SocketAddr, IpAddr, Ipv4Addr}};
 mod types;
 mod api;
 mod rsm;
+mod store;
 
 #[macro_use]
 extern crate lazy_static;
@@ -26,17 +27,14 @@ async fn main() {
         .route("/put", put(handle_put));
 
     // start event loop
-    let rsm_future = rsm::run();
+    tokio::spawn(rsm::run());
+
+    println!("Started etcd");
 
     // start web server
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), *PORT);
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), *PORT);
     axum::Server::bind(&addr)
         .serve(router.into_make_service())
         .await
         .unwrap();
-
-    // need to await, otherwise it doesn't execute
-    rsm_future.await;
-
-    println!("Started etcd");
 }

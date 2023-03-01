@@ -2,8 +2,9 @@ use crate::types::{Key, Value, KeyValue};
 
 use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::NodeId};
 use omnipaxos_storage::memory_storage::MemoryStorage;
-use tokio::{sync::mpsc, time};
+use tokio::time;
 use axum::extract::Json;
+use reqwest;
 use std::{env, sync::{Arc, Mutex}, collections::HashMap};
 
 
@@ -35,6 +36,12 @@ lazy_static! {
     } else {
         panic!("missing PEERS env var")
     };
+
+    static ref PEER_DOMAINS: Vec<String> = if let Ok(var) = env::var("PEER_DOMAINS") {
+        var.split(",").map(|x| x.to_owned()).collect()
+    } else {
+        panic!("missing PEERS env var")
+    };
 }
 
 static mut INSTANCE: Option<Arc<Mutex<RSM>>> = None;
@@ -47,7 +54,6 @@ type OmniPaxosType = OmniPaxos<KeyValue, (), MemoryStorage<KeyValue, OmniPaxosSn
 pub struct RSM {
     pub omnipaxos: OmniPaxosType,
     pub addrs: HashMap<NodeId, String>,
-    // pub incoming: mpsc::Receiver<Message<KeyValue, ()>>,
 }  
 
 impl RSM {
@@ -59,20 +65,28 @@ impl RSM {
             } else {
                 let op_config = OmniPaxosConfig{
                     pid: *PID,
-                    configuration_id: 0, // TODO: what about crash recovery, or reconfiguration?
+                    configuration_id: 1, // TODO: what about crash recovery, or reconfiguration?
                     peers: PEERS.clone(),
                     ..Default::default()
                 };
 
+                let mut addrs = HashMap::default();
+                for i in 0..PEERS.len() {
+                    addrs.insert(PEERS[i], PEER_DOMAINS[i].clone());
+                }
                 let rsm = Arc::new(Mutex::new(RSM{
                     omnipaxos: op_config.build(OmniPaxosStorage::default()),
-                    addrs: todo!(),
+                    addrs,
                 }));
                 INSTANCE = Some(rsm.clone());
                 rsm
             }
         }
     }
+}
+
+enum JsonMessage {
+
 }
 
 async fn send_outgoing_msgs() {
@@ -86,7 +100,10 @@ async fn send_outgoing_msgs() {
         }).collect()
     };
     for msg in messages {
-        todo!() // send via http
+        let url = format!("http://{}/omnipaxos", msg.1);
+        match reqwest::Client::new().post(url).json(&msg.0).send().await {
+            _ => (), // TODO: do we need to call omnipaxos.reconnected(pid) here sometimes?
+        }
     }
 }
 
@@ -99,14 +116,16 @@ pub async fn run() {
             biased;
             _ = election_interval.tick() => { RSM::instance().lock().unwrap().omnipaxos.election_timeout(); },
             _ = outgoing_interval.tick() => { send_outgoing_msgs().await; },
-            // TODO: handle incoming messages on this line
             else => {},
         }
     }
 }
 
-/// TODO: omnipaxos msg json serialization
-/// Receives a message and queues it for the event loop
-pub async fn handle_msg_http(Json(KeyValue): Json<KeyValue>) {
-    todo!()
+/// Receives an omnipaxos message and handles it
+pub async fn handle_msg_http(Json(msg): Json<OmniPaxosMessage>) {
+    match msg {
+        Message::SequencePaxos(ref x) => println!("{:?}", x),
+        _ => (),
+    }
+    RSM::instance().lock().unwrap().omnipaxos.handle_incoming(msg.clone());
 }
