@@ -1,3 +1,4 @@
+use crate::rsm::RSMCommand;
 use crate::types::*;
 use crate::{rsm, rsm::RSM};
 use omnipaxos_core::util::LogEntry;
@@ -34,7 +35,12 @@ impl Store {
             for entry in entries {
                 self.applied_log_index += 1;
                 match entry {
-                    LogEntry::Decided(kv) => { self.map.insert(kv.key, kv.value); },
+                    LogEntry::Decided(cmd) => { 
+                        match cmd {
+                            RSMCommand::Put((_, kv)) => { self.map.insert(kv.key, kv.value); },
+                            RSMCommand::LinearizableRead(_) => (),
+                        }
+                    },
                     LogEntry::Undecided(x) => { panic!("read undecided log entry: {:?}", x)},
                     LogEntry::StopSign(_) => { todo!() },
                     LogEntry::Snapshotted(_) => { todo!() },
@@ -45,6 +51,7 @@ impl Store {
     }
 }
 
+/// Sequentially consistent read
 pub fn get(key: &Key) -> Option<Value> {
     let unlocked = Store::instance();
     let mut store = unlocked.lock().unwrap();
@@ -52,12 +59,18 @@ pub fn get(key: &Key) -> Option<Value> {
     store.map.get(key).map(|x| x.to_owned())
 }
 
+/// linearizable read
+pub async fn linearizable_get(key: &Key) -> Result<Option<Value>, ()> {
+    rsm::append(RSMCommand::new_linearizable_read()).await?;
+    Ok(get(key))
+}
+
 /// Inserts into the replicated store
 /// returns the previous value of this key on success
 pub async fn put(kv: KeyValue) -> Result<Option<KeyValue>,()> {
     let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
     let mut prev_value = get(&kv.key);
-    let idx = rsm::append(kv.clone()).await?;
+    let idx = rsm::append(RSMCommand::new_put(kv.clone())).await?;
 
     // read entries that were decided in the meantime, to get latest previous value
     if let Some(entries) = RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(prev_idx+1) {
@@ -65,7 +78,7 @@ pub async fn put(kv: KeyValue) -> Result<Option<KeyValue>,()> {
             if prev_idx+1+i as u64 == idx {
                 break // only read until the new entry's index
             }
-            if let LogEntry::Decided(old) = entry {
+            if let LogEntry::Decided(RSMCommand::Put((_, old))) = entry {
                 if old.key == kv.key {
                     prev_value = Some(old.value.clone());
                 }

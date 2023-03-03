@@ -9,8 +9,12 @@ pub async fn handle_get(Path(key): Path<Key>) -> Json<GetResponse> {
 }
 
 /// Linearizable read
-pub async fn handle_linearizable_get(Path(key): Path<Key>) -> Json<GetResponse> {
-    todo!()
+pub async fn handle_linearizable_get(Path(key): Path<Key>) -> (StatusCode, Json<GetResponse>) {
+    if let Ok(value) = store::linearizable_get(&key).await {
+        (StatusCode::OK, Json(GetResponse{key, value}))
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(GetResponse{key, value: None}))
+    }
 }
 
 /// Write and return previous value

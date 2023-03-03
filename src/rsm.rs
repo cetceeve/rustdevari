@@ -2,6 +2,7 @@ use crate::types::KeyValue;
 
 use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::{NodeId, LogEntry}};
 use omnipaxos_storage::memory_storage::MemoryStorage;
+use serde::{Serialize, Deserialize};
 use tokio::time;
 use axum::extract::Json;
 use reqwest;
@@ -45,11 +46,52 @@ lazy_static! {
 }
 
 static mut INSTANCE: Option<Arc<Mutex<RSM>>> = None;
+static mut COMMAND_COUNTER: Option<Arc<Mutex<u64>>> = None; // TODO: should not be 0 after crash recovery
+
+/// Generates a globally unique id for an RSMCommand
+fn generate_cmd_id() -> (u64, u64) {
+    unsafe {
+        let unlocked = 
+        if let Some(ref x) = COMMAND_COUNTER {
+            x.clone()
+        } else {
+            let x = Arc::new(Mutex::new(0));
+            COMMAND_COUNTER = Some(x.clone());
+            x
+        };
+        let mut counter = unlocked.lock().unwrap();
+        *counter += 1;
+        (*PID, *counter)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RSMCommand{
+    Put(((u64, u64), KeyValue)),
+    LinearizableRead((u64, u64)),
+}
+
+impl RSMCommand {
+    pub fn get_id(&self) -> (u64, u64) {
+        match self {
+            Self::Put((id, _)) => *id,
+            Self::LinearizableRead(id) => *id,
+        }
+    }
+
+    pub fn new_put(kv: KeyValue) -> Self {
+        Self::Put((generate_cmd_id(), kv))
+    }
+
+    pub fn new_linearizable_read() -> Self {
+        Self::LinearizableRead(generate_cmd_id())
+    }
+}
 
 type OmniPaxosSnapShot = ();
-type OmniPaxosMessage = Message<KeyValue, OmniPaxosSnapShot>;
-type OmniPaxosStorage = MemoryStorage<KeyValue, OmniPaxosSnapShot>;
-type OmniPaxosType = OmniPaxos<KeyValue, (), MemoryStorage<KeyValue, OmniPaxosSnapShot>>;
+type OmniPaxosMessage = Message<RSMCommand, OmniPaxosSnapShot>;
+type OmniPaxosStorage = MemoryStorage<RSMCommand, OmniPaxosSnapShot>;
+type OmniPaxosType = OmniPaxos<RSMCommand, (), OmniPaxosStorage>;
 
 pub struct RSM {
     pub omnipaxos: OmniPaxosType,
@@ -87,13 +129,13 @@ impl RSM {
 
 /// Appends an entry and waits until it is decided
 /// returns the index of the decided entry on success
-pub async fn append(kv: KeyValue) -> Result<u64, ()> {
+pub async fn append(cmd: RSMCommand) -> Result<u64, ()> {
     let start_decided_idx;
     {
         let unlocked = RSM::instance();
         let mut rsm = unlocked.lock().unwrap();
         start_decided_idx = rsm.omnipaxos.get_decided_idx();
-        if let Err(_) = rsm.omnipaxos.append(kv.clone()) {
+        if let Err(_) = rsm.omnipaxos.append(cmd.clone()) {
             return Err(());
         }
     }
@@ -105,7 +147,7 @@ pub async fn append(kv: KeyValue) -> Result<u64, ()> {
             for (i, entry) in entries.iter().enumerate() {
                 match entry {
                     LogEntry::Decided(new) => {
-                        if new.key == kv.key && new.value == kv.value {
+                        if new.get_id() == cmd.get_id() {
                             return Ok(start_decided_idx+1+i as u64);
                         }
                     },

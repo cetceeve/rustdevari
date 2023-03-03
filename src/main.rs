@@ -22,8 +22,9 @@ lazy_static! {
 async fn main() {
     let router = Router::new()
         .route("/omnipaxos", post(rsm::handle_msg_http))
+        .route("/put", put(handle_put))
         .route("/get/:key", get(handle_get))
-        .route("/put", put(handle_put));
+        .route("/linearizable/get/:key", get(handle_linearizable_get));
 
     // start event loop
     tokio::spawn(rsm::run());
