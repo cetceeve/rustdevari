@@ -2,7 +2,6 @@ use crate::api::*;
 use axum::{routing::{get, post, put}, Router};
 use std::{env, net::{SocketAddr, IpAddr, Ipv4Addr}};
 
-
 mod types;
 mod api;
 mod rsm;

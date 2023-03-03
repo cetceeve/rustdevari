@@ -1,6 +1,6 @@
-use crate::types::{Key, Value, KeyValue};
+use crate::types::KeyValue;
 
-use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::NodeId};
+use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::{NodeId, LogEntry}};
 use omnipaxos_storage::memory_storage::MemoryStorage;
 use tokio::time;
 use axum::extract::Json;
@@ -54,7 +54,7 @@ type OmniPaxosType = OmniPaxos<KeyValue, (), MemoryStorage<KeyValue, OmniPaxosSn
 pub struct RSM {
     pub omnipaxos: OmniPaxosType,
     pub addrs: HashMap<NodeId, String>,
-}  
+}
 
 impl RSM {
     /// Get the singleton RSM instance
@@ -85,8 +85,35 @@ impl RSM {
     }
 }
 
-enum JsonMessage {
+/// Appends an entry and waits until it is decided
+/// returns the index of the decided entry on success
+pub async fn append(kv: KeyValue) -> Result<u64, ()> {
+    let start_decided_idx;
+    {
+        let unlocked = RSM::instance();
+        let mut rsm = unlocked.lock().unwrap();
+        start_decided_idx = rsm.omnipaxos.get_decided_idx();
+        if let Err(_) = rsm.omnipaxos.append(kv.clone()) {
+            return Err(());
+        }
+    }
 
+    // wait until decided
+    loop {
+        time::sleep(time::Duration::from_millis(1)).await;
+        if let Some(entries) = RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(start_decided_idx) {
+            for (i, entry) in entries.iter().enumerate() {
+                match entry {
+                    LogEntry::Decided(new) => {
+                        if new.key == kv.key && new.value == kv.value {
+                            return Ok(start_decided_idx+1+i as u64);
+                        }
+                    },
+                    _ => (),
+                }
+            }
+        }
+    }
 }
 
 async fn send_outgoing_msgs() {

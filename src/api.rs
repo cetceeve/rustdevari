@@ -1,25 +1,24 @@
-use crate::{types::*, rsm::RSM, store::Store};
-use axum::{extract::{Json, Path}, response::IntoResponse};
+use crate::{types::*, store};
+use axum::extract::{Json, Path};
 use hyper::StatusCode;
 
+/// Sequentially consistent read
 pub async fn handle_get(Path(key): Path<Key>) -> Json<GetResponse> {
-    // TODO: what to do it we are partitioned from the network and our state is outdated?
-    let value = Store::instance().lock().unwrap().get(&key);
+    let value = store::get(&key);
     Json(GetResponse{key, value})
 }
 
-pub async fn handle_put(Json(req): Json<PutRequest>) -> impl IntoResponse {
-    println!("HELLO");
-    let prev_value = Store::instance().lock().unwrap().get(&req.key);
-    let prev_kv = if let Some(val) = prev_value {
-        Some(KeyValue{key: req.key.clone(), value: val})
-    } else {
-        None
-    };
+/// Linearizable read
+pub async fn handle_linearizable_get(Path(key): Path<Key>) -> Json<GetResponse> {
+    todo!()
+}
 
+/// Write and return previous value
+pub async fn handle_put(Json(req): Json<PutRequest>) -> (StatusCode, Json<PutResponse>) {
     let kv = KeyValue{key: req.key.clone(), value: req.value};
-    if let Err(_) = RSM::instance().lock().unwrap().omnipaxos.append(kv) {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(PutResponse{ prev_kv: None })).into_response()
+    if let Ok(prev_kv) = store::put(kv).await {
+        return (StatusCode::OK, Json(PutResponse{ prev_kv }))
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(PutResponse{ prev_kv: None }))
     }
-    Json(PutResponse{ prev_kv }).into_response()
 }
