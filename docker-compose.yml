@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   ditm:
-    image: ditm
+    image: jonathanarns/ditm
     container_name: ditm
     hostname: ditm
     environment:
