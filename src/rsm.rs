@@ -86,12 +86,14 @@ pub enum RSMCommand{
     Put(((u64, u64), KeyValue)),
     LinearizableRead((u64, u64)),
     CAS(((u64, u64), KeyValue, Value)),
+    Delete(((u64, u64), Key)),
 }
 
 impl RSMCommand {
     pub fn get_id(&self) -> (u64, u64) {
         match self {
             Self::Put((id, _)) => *id,
+            Self::Delete((id, _)) => *id,
             Self::CAS((id, _, _)) => *id,
             Self::LinearizableRead(id) => *id,
         }
@@ -103,6 +105,10 @@ impl RSMCommand {
 
     pub fn new_linearizable_read() -> Self {
         Self::LinearizableRead(generate_cmd_id())
+    }
+
+    pub fn new_delete(key: Key) -> Self {
+        Self::Delete((generate_cmd_id(), key))
     }
 
     pub fn new_cas(key: Key, new_v: Value, exp_v: Value) -> Self {

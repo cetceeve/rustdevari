@@ -45,6 +45,7 @@ impl Store {
                                     }
                                 }
                             },
+                            RSMCommand::Delete((_, key)) => { self.map.remove(&key); },
                             RSMCommand::LinearizableRead(_) => (),
                         }
                     },
@@ -72,6 +73,39 @@ pub async fn linearizable_get(key: &Key) -> Result<Option<Value>, ()> {
     Ok(get(key))
 }
 
+/// Takes a previous value that was read before an operation and updates it with
+/// the new commands that were decided during the operation
+fn get_prev_value_after_decide(key: &Key, mut prev_val: Option<Value>, prev_decided_idx: u64, new_decided_idx: u64) -> Option<Value> {
+    if let Some(entries) = RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(prev_decided_idx) {
+        for (i, entry) in entries.iter().enumerate() {
+            if prev_decided_idx + (i as u64) == new_decided_idx {
+                break // only read until the operation's entry's index
+            }
+            if let LogEntry::Decided(cmd) = entry {
+                match cmd {
+                    RSMCommand::LinearizableRead(_) => (),
+                    RSMCommand::Put((_, kv)) => {
+                        if kv.key == *key {
+                            prev_val = Some(kv.value.clone());
+                        }
+                    },
+                    RSMCommand::Delete((_, del_key)) => {
+                        if *del_key == *key {
+                            prev_val = None;
+                        }
+                    },
+                    RSMCommand::CAS((_, kv, exp_val)) => {
+                        if kv.key == *key && kv.value == *exp_val {
+                            prev_val = Some(kv.value.clone());
+                        }
+                    },
+                }
+            }
+        }
+    }
+    prev_val
+}
+
 /// Inserts into the replicated store
 /// returns the previous value of this key on success
 pub async fn put(kv: KeyValue) -> Result<Option<KeyValue>,()> {
@@ -80,19 +114,20 @@ pub async fn put(kv: KeyValue) -> Result<Option<KeyValue>,()> {
     let idx = rsm::append(RSMCommand::new_put(kv.clone())).await?;
 
     // read entries that were decided in the meantime, to get latest previous value
-    if let Some(entries) = RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(prev_idx) {
-        for (i, entry) in entries.iter().enumerate() {
-            if prev_idx+i as u64 == idx {
-                break // only read until the new entry's index
-            }
-            if let LogEntry::Decided(RSMCommand::Put((_, old))) = entry {
-                if old.key == kv.key {
-                    prev_value = Some(old.value.clone());
-                }
-            }
-        }
-    }
+    prev_value = get_prev_value_after_decide(&kv.key, prev_value, prev_idx, idx);
     Ok(prev_value.map(|value| KeyValue{key: kv.key, value}))
+}
+
+/// Inserts into the replicated store
+/// returns the previous value of this key on success
+pub async fn delete(key: Key) -> Result<Option<KeyValue>,()> {
+    let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
+    let mut prev_value = get(&key);
+    let idx = rsm::append(RSMCommand::new_delete(key.clone())).await?;
+
+    // read entries that were decided in the meantime, to get latest previous value
+    prev_value = get_prev_value_after_decide(&key, prev_value, prev_idx, idx);
+    Ok(prev_value.map(|value| KeyValue{key, value}))
 }
 
 /// Performs linearizable CAS operation
@@ -103,17 +138,6 @@ pub async fn cas(key: Key, new_value: Value, expected_value: Value) -> Result<Op
     let idx = rsm::append(RSMCommand::new_cas(key.clone(), new_value.clone(), expected_value.clone())).await?;
 
     // read entries that were decided in the meantime, to get latest previous value
-    if let Some(entries) = RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(prev_idx) {
-        for (i, entry) in entries.iter().enumerate() {
-            if prev_idx+i as u64 == idx {
-                break // only read until the new entry's index
-            }
-            if let LogEntry::Decided(RSMCommand::Put((_, old))) = entry {
-                if old.key == key {
-                    prev_value = Some(old.value.clone());
-                }
-            }
-        }
-    }
+    prev_value = get_prev_value_after_decide(&key, prev_value, prev_idx, idx);
     Ok(prev_value.map(|value| KeyValue{key, value}))
 }

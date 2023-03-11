@@ -6,6 +6,7 @@
 - [x] sequentially consistent read/write
 - [x] linearizable reads
 - [x] CAS operation
+- [x] Delete operation
 - [x] perfect link (omission model)
 - [ ] crash recovery
 #### Want

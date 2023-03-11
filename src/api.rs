@@ -8,6 +8,15 @@ pub async fn handle_get(Path(key): Path<Key>) -> Json<GetResponse> {
     Json(GetResponse{key, value})
 }
 
+/// Delete key from store
+pub async fn handle_delete(Path(key): Path<Key>) -> (StatusCode, Json<PutResponse>) {
+    if let Ok(prev_kv) = store::delete(key).await {
+        return (StatusCode::OK, Json(PutResponse{ prev_kv }))
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(PutResponse{ prev_kv: None }))
+    }
+}
+
 /// Linearizable read
 pub async fn handle_linearizable_get(Path(key): Path<Key>) -> (StatusCode, Json<GetResponse>) {
     if let Ok(value) = store::linearizable_get(&key).await {

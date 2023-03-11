@@ -1,5 +1,5 @@
 use crate::api::*;
-use axum::{routing::{get, post, put}, Router};
+use axum::{routing::{get, post, put, delete}, Router};
 use std::{env, net::{SocketAddr, IpAddr, Ipv4Addr}};
 
 mod types;
@@ -25,6 +25,7 @@ async fn main() {
         .route("/put", put(handle_put))
         .route("/cas", post(handle_cas))
         .route("/get/:key", get(handle_get))
+        .route("/delete/:key", delete(handle_delete))
         .route("/linearizable/get/:key", get(handle_linearizable_get));
 
     // start event loop

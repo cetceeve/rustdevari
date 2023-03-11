@@ -15,6 +15,15 @@ def new_session():
     session.hooks["response"] = timing
     return session
 
+def sc_read(session, futures_list, node, key):
+    future = session.get(f"http://etcd{node}:8080/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
+    future.start = time()
+    future.input = {"key": key}
+    future.op = "read"
+    future.node = node
+    futures_list.append(future)
+    return future
+
 def read(session, futures_list, node, key):
     future = session.get(f"http://etcd{node}:8080/linearizable/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
     future.start = time()
@@ -38,6 +47,15 @@ def cas(session, futures_list, node, key, new_val, expected_val):
     future.start = time()
     future.input = {"key": key, "new_value": new_val, "expected_value": expected_val}
     future.op = "cas"
+    future.node = node
+    futures_list.append(future)
+    return future
+
+def delete(session, futures_list, node, key):
+    future = session.delete(f"http://etcd{node}:8080/delete/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
+    future.start = time()
+    future.input = {"key": key}
+    future.op = "delete"
     future.node = node
     futures_list.append(future)
     return future
@@ -102,6 +120,13 @@ def wing_gong(results_list):
                     result["prev_kv"] = {"key": key, "value": self.state[key]}
                     if self.state[key] == exp_val:
                         self.state[key] = new_val
+                return result
+            if op == "delete":
+                key = event["input"]["key"]
+                result = {"prev_kv": None}
+                if key in self.state:
+                    result["prev_kv"] = {"key": key, "value": self.state[key]}
+                del self.state[key]
                 return result
             if op == "read":
                 key = event["input"]["key"]

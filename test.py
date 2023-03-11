@@ -1,6 +1,15 @@
 from time import sleep
 from pprint import pprint
-from util import new_session, read, put, cas, collect_results, wing_gong
+from util import (
+    sc_read,
+    read,
+    put,
+    cas,
+    delete,
+    new_session,
+    collect_results,
+    wing_gong,
+)
 
 
 futures_list = []
@@ -34,11 +43,17 @@ try:
     sleep(0.1)
     read(session, futures_list, 2, "1")
 
+    sleep(1)
+
+    # cleanup
+    delete(session, futures_list, 1, "1")
+
     sleep(3)
     
     result_events = collect_results(futures_list)
 
 except Exception as e:
+    print(e)
     pass
 
 # check linearizability
