@@ -73,9 +73,9 @@ pub async fn put(kv: KeyValue) -> Result<Option<KeyValue>,()> {
     let idx = rsm::append(RSMCommand::new_put(kv.clone())).await?;
 
     // read entries that were decided in the meantime, to get latest previous value
-    if let Some(entries) = RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(prev_idx+1) {
+    if let Some(entries) = RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(prev_idx) {
         for (i, entry) in entries.iter().enumerate() {
-            if prev_idx+1+i as u64 == idx {
+            if prev_idx+i as u64 == idx {
                 break // only read until the new entry's index
             }
             if let LogEntry::Decided(RSMCommand::Put((_, old))) = entry {

@@ -148,7 +148,7 @@ pub async fn append(cmd: RSMCommand) -> Result<u64, ()> {
                 match entry {
                     LogEntry::Decided(new) => {
                         if new.get_id() == cmd.get_id() {
-                            return Ok(start_decided_idx+1+i as u64);
+                            return Ok(start_decided_idx+i as u64);
                         }
                     },
                     _ => (),
