@@ -5,7 +5,7 @@
 #### Need
 - [x] sequentially consistent read/write
 - [x] linearizable reads
-- [ ] CAS operation
+- [x] CAS operation
 - [x] perfect link (omission model)
 - [ ] crash recovery
 #### Want
@@ -14,6 +14,7 @@
 ### Testing
 - [x] linearizability checker
 - [ ] measure availability / show that progress is being made during partitions
+- [ ] test crash recovery
 - [ ] test cases for all partial connectivity scenarios
 - [ ] sequential consistency checker?
 

@@ -26,3 +26,12 @@ pub async fn handle_put(Json(req): Json<PutRequest>) -> (StatusCode, Json<PutRes
         (StatusCode::INTERNAL_SERVER_ERROR, Json(PutResponse{ prev_kv: None }))
     }
 }
+
+/// Linearizable Compare and Swap
+pub async fn handle_cas(Json(req): Json<CASRequest>) -> (StatusCode, Json<PutResponse>) {
+    if let Ok(prev_kv) = store::cas(req.key, req.new_value, req.expected_value).await {
+        return (StatusCode::OK, Json(PutResponse{ prev_kv }))
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(PutResponse{ prev_kv: None }))
+    }
+}

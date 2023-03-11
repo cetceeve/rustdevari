@@ -23,6 +23,7 @@ async fn main() {
     let router = Router::new()
         .route("/omnipaxos", post(rsm::handle_msg_http))
         .route("/put", put(handle_put))
+        .route("/cas", post(handle_cas))
         .route("/get/:key", get(handle_get))
         .route("/linearizable/get/:key", get(handle_linearizable_get));
 

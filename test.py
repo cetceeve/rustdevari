@@ -1,6 +1,6 @@
 from time import sleep
 from pprint import pprint
-from util import new_session, read, put, collect_results, wing_gong
+from util import new_session, read, put, cas, collect_results, wing_gong
 
 
 futures_list = []
@@ -29,6 +29,9 @@ try:
 
     sleep(1)
 
+    cas(session, futures_list, 1, "1", "3", "2")
+    cas(session, futures_list, 3, "1", "4", "1")
+    sleep(0.1)
     read(session, futures_list, 2, "1")
 
     sleep(3)

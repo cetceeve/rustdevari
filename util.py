@@ -20,14 +20,25 @@ def read(session, futures_list, node, key):
     future.start = time()
     future.input = {"key": key}
     future.op = "read"
+    future.node = node
     futures_list.append(future)
     return future
 
 def put(session, futures_list, node, key, val):
-    future = session.put(f"http://etcd{node}:8080/put", json={"key":key, "value":val, "lease":0, "prev_kv": True, "ignore_value": False, "ignore_lease": True}, proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.put(f"http://etcd{node}:8080/put", json={"key":key, "value":val}, proxies=proxies, timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key, "value": val}
     future.op = "put"
+    future.node = node
+    futures_list.append(future)
+    return future
+
+def cas(session, futures_list, node, key, new_val, expected_val):
+    future = session.post(f"http://etcd{node}:8080/cas", json={"key":key, "new_value":new_val, "expected_value":expected_val}, proxies=proxies, timeout=MAX_TIMEOUT)
+    future.start = time()
+    future.input = {"key": key, "new_value": new_val, "expected_value": expected_val}
+    future.op = "cas"
+    future.node = node
     futures_list.append(future)
     return future
 
@@ -40,6 +51,7 @@ def collect_results(futures_list):
             results_list.append({
                 "start": f.start,
                 "end": r.end,
+                "node": f.node,
                 "op": f.op,
                 "input": f.input,
                 "result": r.json(),
@@ -48,6 +60,7 @@ def collect_results(futures_list):
         results_list.append({
             "start":f.start,
             "end": float("inf"),
+            "node": f.node,
             "op": f.op,
             "input": f.input,
             "result": None,
@@ -80,6 +93,16 @@ def wing_gong(results_list):
                     result["prev_kv"] = {"key": key, "value": self.state[key]}
                 self.state[key] = val
                 return result
+            if op == "cas":
+                key = event["input"]["key"]
+                new_val = event["input"]["new_value"]
+                exp_val = event["input"]["expected_value"]
+                result = {"prev_kv": None}
+                if key in self.state:
+                    result["prev_kv"] = {"key": key, "value": self.state[key]}
+                    if self.state[key] == exp_val:
+                        self.state[key] = new_val
+                return result
             if op == "read":
                 key = event["input"]["key"]
                 if not key in self.state:
@@ -88,7 +111,7 @@ def wing_gong(results_list):
                     return {"key": key, "value": self.state[key]}
             
     def search(h, s):
-        print(f"state: {s.state}, events:")
+        print(f"state: {s.state}, events left:")
         pprint(h)
         if len(h) == 0:
             return True

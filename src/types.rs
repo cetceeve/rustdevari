@@ -19,10 +19,13 @@ pub struct GetResponse {
 pub struct PutRequest {
     pub key: Key,
     pub value: Value,
-    pub lease: i64,
-    pub prev_kv: bool,
-    pub ignore_value: bool,
-    pub ignore_lease: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CASRequest {
+    pub key: Key,
+    pub new_value: Value,
+    pub expected_value: Value,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

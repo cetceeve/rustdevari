@@ -38,6 +38,13 @@ impl Store {
                     LogEntry::Decided(cmd) => { 
                         match cmd {
                             RSMCommand::Put((_, kv)) => { self.map.insert(kv.key, kv.value); },
+                            RSMCommand::CAS((_, kv, exp_val)) => {
+                                if let Some(old_val) = self.map.get(&kv.key) {
+                                    if *old_val == exp_val {
+                                        self.map.insert(kv.key, kv.value);
+                                    }
+                                }
+                            },
                             RSMCommand::LinearizableRead(_) => (),
                         }
                     },
@@ -86,4 +93,27 @@ pub async fn put(kv: KeyValue) -> Result<Option<KeyValue>,()> {
         }
     }
     Ok(prev_value.map(|value| KeyValue{key: kv.key, value}))
+}
+
+/// Performs linearizable CAS operation
+/// returns the previous value of this key on success
+pub async fn cas(key: Key, new_value: Value, expected_value: Value) -> Result<Option<KeyValue>,()> {
+    let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
+    let mut prev_value = get(&key);
+    let idx = rsm::append(RSMCommand::new_cas(key.clone(), new_value.clone(), expected_value.clone())).await?;
+
+    // read entries that were decided in the meantime, to get latest previous value
+    if let Some(entries) = RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(prev_idx) {
+        for (i, entry) in entries.iter().enumerate() {
+            if prev_idx+i as u64 == idx {
+                break // only read until the new entry's index
+            }
+            if let LogEntry::Decided(RSMCommand::Put((_, old))) = entry {
+                if old.key == key {
+                    prev_value = Some(old.value.clone());
+                }
+            }
+        }
+    }
+    Ok(prev_value.map(|value| KeyValue{key, value}))
 }

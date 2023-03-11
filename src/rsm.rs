@@ -1,4 +1,4 @@
-use crate::types::KeyValue;
+use crate::types::{KeyValue, Key, Value};
 
 use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::{NodeId, LogEntry}};
 use omnipaxos_storage::memory_storage::*;
@@ -85,12 +85,14 @@ fn generate_sequence_id() -> u64 {
 pub enum RSMCommand{
     Put(((u64, u64), KeyValue)),
     LinearizableRead((u64, u64)),
+    CAS(((u64, u64), KeyValue, Value)),
 }
 
 impl RSMCommand {
     pub fn get_id(&self) -> (u64, u64) {
         match self {
             Self::Put((id, _)) => *id,
+            Self::CAS((id, _, _)) => *id,
             Self::LinearizableRead(id) => *id,
         }
     }
@@ -101,6 +103,10 @@ impl RSMCommand {
 
     pub fn new_linearizable_read() -> Self {
         Self::LinearizableRead(generate_cmd_id())
+    }
+
+    pub fn new_cas(key: Key, new_v: Value, exp_v: Value) -> Self {
+        Self::CAS((generate_cmd_id(), KeyValue{key, value: new_v}, exp_v))
     }
 }
 
