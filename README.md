@@ -10,7 +10,7 @@
 - [x] perfect link (omission model)
 - [ ] crash recovery
 #### Want
-- [ ] snapshots
+- [x] snapshots
 - [ ] configuration changes
 ### Testing
 - [x] linearizability checker

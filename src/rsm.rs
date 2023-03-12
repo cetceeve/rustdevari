@@ -1,4 +1,5 @@
 use crate::types::{KeyValue, Key, Value};
+use crate::snapshot::OPSnapshot;
 
 use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::{NodeId, LogEntry}};
 use omnipaxos_storage::memory_storage::*;
@@ -116,11 +117,9 @@ impl RSMCommand {
     }
 }
 
-type OmniPaxosSnapShot = ();
-type OmniPaxosMessage = Message<RSMCommand, OmniPaxosSnapShot>;
-// type OmniPaxosStorage = PersistentStorage<RSMCommand, OmniPaxosSnapShot>;
-type OmniPaxosStorage = MemoryStorage<RSMCommand, OmniPaxosSnapShot>;
-type OmniPaxosType = OmniPaxos<RSMCommand, (), OmniPaxosStorage>;
+type OmniPaxosMessage = Message<RSMCommand, OPSnapshot>;
+type OmniPaxosStorage = MemoryStorage<RSMCommand, OPSnapshot>;
+type OmniPaxosType = OmniPaxos<RSMCommand, OPSnapshot, OmniPaxosStorage>;
 
 pub struct RSM {
     pub omnipaxos: OmniPaxosType,

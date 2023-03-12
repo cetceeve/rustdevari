@@ -15,6 +15,9 @@ def new_session():
     session.hooks["response"] = timing
     return session
 
+def snapshot(session, node):
+    session.post(f"http://etcd{node}:8080/snapshot", proxies=proxies, timeout=2).result()
+
 def sc_read(session, futures_list, node, key):
     future = session.get(f"http://etcd{node}:8080/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
     future.start = time()

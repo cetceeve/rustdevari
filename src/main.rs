@@ -5,6 +5,7 @@ use std::{env, net::{SocketAddr, IpAddr, Ipv4Addr}};
 mod types;
 mod api;
 mod rsm;
+mod snapshot;
 mod store;
 
 #[macro_use]
@@ -26,7 +27,8 @@ async fn main() {
         .route("/cas", post(handle_cas))
         .route("/get/:key", get(handle_get))
         .route("/delete/:key", delete(handle_delete))
-        .route("/linearizable/get/:key", get(handle_linearizable_get));
+        .route("/linearizable/get/:key", get(handle_linearizable_get))
+        .route("/snapshot", post(handle_snapshot));
 
     // start event loop
     tokio::spawn(rsm::run());
