@@ -1,8 +1,9 @@
 use crate::types::{KeyValue, Key, Value};
 
 use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::{NodeId, LogEntry}};
-use omnipaxos_storage::memory_storage::*;
+use omnipaxos_storage::persistent_storage::*;
 use serde::{Serialize, Deserialize};
+use serde_json;
 use tokio::time;
 use axum::extract::Json;
 use reqwest;
@@ -46,8 +47,41 @@ lazy_static! {
 }
 
 static mut INSTANCE: Option<Arc<Mutex<RSM>>> = None;
-static mut COMMAND_COUNTER: Option<Arc<Mutex<u64>>> = None; // TODO: should not be 0 after crash recovery
-static mut OUT_MSG_COUNTER: Option<Arc<Mutex<u64>>> = None; // TODO: should not be 0 after crash recovery
+// static mut COMMAND_COUNTER: Option<Arc<Mutex<u64>>> = None; // TODO: should not be 0 after crash recovery
+// static mut OUT_MSG_COUNTER: Option<Arc<Mutex<u64>>> = None; // TODO: should not be 0 after crash recovery
+static mut DISK_STATE_LOCK: Option<Arc<Mutex<bool>>> = None;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DiskState {
+    cmd_counter: u64,
+    out_msg_counter: u64,
+    outgoing_buffer: Vec<(u64, String, OmniPaxosMessage)>,
+    delivered_msgs: HashMap<NodeId, Vec<u64>>,
+}
+
+/// should only be called when holding the RSM lock
+fn get_disk_state() -> DiskState {
+    if let Ok(text) = std::fs::read_to_string("disk_state.json") {
+        serde_json::from_str(&text).unwrap()
+    } else {
+        let mut delivered_msgs = HashMap::default();
+        for i in 0..PEERS.len() {
+            delivered_msgs.insert(PEERS[i], vec![]);
+        }
+        DiskState{
+            cmd_counter: 0,
+            out_msg_counter: 0,
+            outgoing_buffer: vec![],
+            delivered_msgs,
+        }
+    }
+}
+
+/// should be called before dropping the RSM lock
+fn write_disk_state(state: DiskState) {
+    let text = serde_json::to_string(&state).unwrap();
+    std::fs::write("disk_state.json", text).unwrap();
+}
 
 /// Generates a globally unique id for an RSMCommand
 fn generate_cmd_id() -> (u64, u64) {
@@ -118,15 +152,12 @@ impl RSMCommand {
 
 type OmniPaxosSnapShot = ();
 type OmniPaxosMessage = Message<RSMCommand, OmniPaxosSnapShot>;
-// type OmniPaxosStorage = PersistentStorage<RSMCommand, OmniPaxosSnapShot>;
-type OmniPaxosStorage = MemoryStorage<RSMCommand, OmniPaxosSnapShot>;
+type OmniPaxosStorage = PersistentStorage<RSMCommand, OmniPaxosSnapShot>;
 type OmniPaxosType = OmniPaxos<RSMCommand, (), OmniPaxosStorage>;
 
 pub struct RSM {
     pub omnipaxos: OmniPaxosType,
     addrs: HashMap<NodeId, String>,
-    outgoing_buffer: Vec<(u64, String, OmniPaxosMessage)>,
-    delivered_msgs: HashMap<NodeId, Vec<u64>>,
 }
 
 impl RSM {
@@ -149,8 +180,7 @@ impl RSM {
                     addrs.insert(PEERS[i], PEER_DOMAINS[i].clone());
                     delivered_msgs.insert(PEERS[i], vec![]);
                 }
-                // let storage = PersistentStorage::new(PersistentStorageConfig::default());
-                let storage = OmniPaxosStorage::default();
+                let storage = PersistentStorage::new(PersistentStorageConfig::default());
                 let rsm = Arc::new(Mutex::new(RSM{
                     omnipaxos: op_config.build(storage),
                     addrs,
@@ -268,5 +298,5 @@ pub async fn handle_msg_http(Json((sequence_id, msg)): Json<(u64, OmniPaxosMessa
             delivered_msgs.push(sequence_id);
         }
     }
-    rsm.omnipaxos.handle_incoming(msg.clone());
+    RSM::instance().lock().unwrap().omnipaxos.handle_incoming(msg.clone());
 }

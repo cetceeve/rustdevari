@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 omnipaxos_core = { git = "https://github.com/JonathanArns/omnipaxos" }
-omnipaxos_storage = { git = "https://github.com/JonathanArns/omnipaxos" }
+omnipaxos_storage = { git = "https://github.com/JonathanArns/omnipaxos", features = ["sled"] }
 
 axum = "0.6" # our web framework
 tokio = { version = "1", features = ["full"] } # async runtime, needed for axum

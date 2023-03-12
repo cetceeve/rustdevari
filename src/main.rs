@@ -1,6 +1,7 @@
 use crate::api::*;
 use axum::{routing::{get, post, put, delete}, Router};
-use std::{env, net::{SocketAddr, IpAddr, Ipv4Addr}};
+use tokio::time::sleep;
+use std::{env, net::{SocketAddr, IpAddr, Ipv4Addr}, process::exit, time::Duration};
 
 mod types;
 mod api;
@@ -18,10 +19,18 @@ lazy_static! {
     };
 }
 
+static mut CRASH: bool = false;
+
+/// Request handler that crashes the server when called
+pub async fn handle_crash() {
+    unsafe { CRASH = true; }
+}
+
 #[tokio::main]
 async fn main() {
     let router = Router::new()
         .route("/omnipaxos", post(rsm::handle_msg_http))
+        .route("/crash", post(handle_crash))
         .route("/put", put(handle_put))
         .route("/cas", post(handle_cas))
         .route("/get/:key", get(handle_get))
@@ -30,6 +39,17 @@ async fn main() {
 
     // start event loop
     tokio::spawn(rsm::run());
+
+    // this is used to simulate server crashes
+    tokio::spawn(async {
+        loop {
+            sleep(Duration::from_millis(1)).await;
+            if unsafe { CRASH } {
+                sleep(Duration::from_millis(5)).await;
+                exit(1);
+            }
+        }
+    });
 
     println!("Started etcd");
 

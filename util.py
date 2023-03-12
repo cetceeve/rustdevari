@@ -3,6 +3,7 @@ from concurrent.futures import wait, FIRST_EXCEPTION
 from pprint import pprint
 from time import time
 import copy
+import json
 
 MAX_TIMEOUT = 8
 TIMEOUT = 3
@@ -14,6 +15,15 @@ def new_session():
     session = FuturesSession()
     session.hooks["response"] = timing
     return session
+
+def partition(session, partitions):
+    session.get(f"http://localhost:8000/block_config?&mode=partitions&partitions={json.dumps(partitions)}").result()
+
+def crash(session, node):
+    try:
+        session.post(f"http://etcd{node}:8080/crash", proxies=proxies, timeout=1).result()
+    except:
+        pass
 
 def sc_read(session, futures_list, node, key):
     future = session.get(f"http://etcd{node}:8080/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
