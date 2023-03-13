@@ -1,4 +1,4 @@
-use crate::{types::*, store};
+use crate::{types::*, store, rsm::RSM};
 use axum::extract::{Json, Path};
 use hyper::StatusCode;
 
@@ -30,7 +30,7 @@ pub async fn handle_linearizable_get(Path(key): Path<Key>) -> (StatusCode, Json<
 pub async fn handle_put(Json(req): Json<PutRequest>) -> (StatusCode, Json<PutResponse>) {
     let kv = KeyValue{key: req.key.clone(), value: req.value};
     if let Ok(prev_kv) = store::put(kv).await {
-        return (StatusCode::OK, Json(PutResponse{ prev_kv }))
+        (StatusCode::OK, Json(PutResponse{ prev_kv }))
     } else {
         (StatusCode::INTERNAL_SERVER_ERROR, Json(PutResponse{ prev_kv: None }))
     }
@@ -39,8 +39,23 @@ pub async fn handle_put(Json(req): Json<PutRequest>) -> (StatusCode, Json<PutRes
 /// Linearizable Compare and Swap
 pub async fn handle_cas(Json(req): Json<CASRequest>) -> (StatusCode, Json<PutResponse>) {
     if let Ok(prev_kv) = store::cas(req.key, req.new_value, req.expected_value).await {
-        return (StatusCode::OK, Json(PutResponse{ prev_kv }))
+        (StatusCode::OK, Json(PutResponse{ prev_kv }))
     } else {
         (StatusCode::INTERNAL_SERVER_ERROR, Json(PutResponse{ prev_kv: None }))
     }
+}
+
+/// Linearizable Compare and Swap
+pub async fn handle_snapshot() -> StatusCode {
+    if let Ok(_) = store::snapshot().await {
+        StatusCode::OK
+    } else {
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
+}
+
+/// Linearizable Compare and Swap
+pub async fn handle_print_log() -> StatusCode {
+    println!("decided log: {:?}", RSM::instance().lock().unwrap().omnipaxos.read_decided_suffix(0));
+    StatusCode::OK
 }

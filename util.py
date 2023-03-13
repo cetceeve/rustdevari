@@ -7,7 +7,8 @@ import json
 
 MAX_TIMEOUT = 8
 TIMEOUT = 3
-proxies = {"http": "http://localhost:5000"}
+# proxies = {"http": "http://localhost:5000"}
+proxies = {}
 
 def new_session():
     def timing(r, *args, **kwargs):
@@ -17,16 +18,34 @@ def new_session():
     return session
 
 def partition(session, partitions):
-    session.get(f"http://localhost:8000/block_config?&mode=partitions&partitions={json.dumps(partitions)}").result()
+    try:
+        session.get(f"http://localhost:8000/block_config?&mode=partitions&partitions={json.dumps(partitions)}").result()
+    except:
+        print("partition")
+        pass
 
 def crash(session, node):
     try:
-        session.post(f"http://etcd{node}:8080/crash", proxies=proxies, timeout=1).result()
+        session.post(f"http://localhost:808{node}/crash", proxies=proxies, timeout=1).result()
     except:
         pass
 
+def snapshot(session, node):
+    try:
+        session.post(f"http://localhost:808{node}/snapshot", proxies=proxies, timeout=1).result()
+    except:
+        print("snapshot")
+        pass
+
+def print_log(session, node):
+    try:
+        session.get(f"http://localhost:808{node}/print_log", proxies=proxies, timeout=1).result()
+    except:
+        print("print_log")
+        pass
+
 def sc_read(session, futures_list, node, key):
-    future = session.get(f"http://etcd{node}:8080/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.get(f"http://localhost:808{node}/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key}
     future.op = "read"
@@ -35,7 +54,7 @@ def sc_read(session, futures_list, node, key):
     return future
 
 def read(session, futures_list, node, key):
-    future = session.get(f"http://etcd{node}:8080/linearizable/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.get(f"http://localhost:808{node}/linearizable/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key}
     future.op = "read"
@@ -44,7 +63,7 @@ def read(session, futures_list, node, key):
     return future
 
 def put(session, futures_list, node, key, val):
-    future = session.put(f"http://etcd{node}:8080/put", json={"key":key, "value":val}, proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.put(f"http://localhost:808{node}/put", json={"key":key, "value":val}, proxies=proxies, timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key, "value": val}
     future.op = "put"
@@ -53,7 +72,7 @@ def put(session, futures_list, node, key, val):
     return future
 
 def cas(session, futures_list, node, key, new_val, expected_val):
-    future = session.post(f"http://etcd{node}:8080/cas", json={"key":key, "new_value":new_val, "expected_value":expected_val}, proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.post(f"http://localhost:808{node}/cas", json={"key":key, "new_value":new_val, "expected_value":expected_val}, proxies=proxies, timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key, "new_value": new_val, "expected_value": expected_val}
     future.op = "cas"
@@ -62,7 +81,7 @@ def cas(session, futures_list, node, key, new_val, expected_val):
     return future
 
 def delete(session, futures_list, node, key):
-    future = session.delete(f"http://etcd{node}:8080/delete/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.delete(f"http://localhost:808{node}/delete/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key}
     future.op = "delete"
@@ -74,7 +93,13 @@ def collect_results(futures_list):
     results_list = []
     (done, not_done) = wait(futures_list, timeout=TIMEOUT, return_when=FIRST_EXCEPTION)
     for f in done:
-        r = f.result()
+        r = None
+        try:
+            r = f.result()
+        except:
+            not_done.add(f)
+            print(f"HELLLLO {f}")
+            continue
         if r.ok:
             results_list.append({
                 "start": f.start,

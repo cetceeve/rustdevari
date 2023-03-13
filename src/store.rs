@@ -1,6 +1,7 @@
 use crate::rsm::RSMCommand;
 use crate::types::*;
 use crate::{rsm, rsm::RSM};
+use omnipaxos_core::omni_paxos::CompactionErr;
 use omnipaxos_core::util::LogEntry;
 use std::{sync::{Arc, Mutex}, collections::HashMap};
 
@@ -49,9 +50,26 @@ impl Store {
                             RSMCommand::LinearizableRead(_) => (),
                         }
                     },
+                    LogEntry::Snapshotted(entry) => {
+                        for (_, v) in entry.snapshot.snapshotted.into_iter() {
+                            for cmd in v {
+                                match cmd {
+                                    RSMCommand::Put((_, kv)) => { self.map.insert(kv.key, kv.value); },
+                                    RSMCommand::CAS((_, kv, exp_val)) => {
+                                        if let Some(old_val) = self.map.get(&kv.key) {
+                                            if *old_val == exp_val {
+                                                self.map.insert(kv.key, kv.value);
+                                            }
+                                        }
+                                    },
+                                    RSMCommand::Delete((_, key)) => { self.map.remove(&key); },
+                                    RSMCommand::LinearizableRead(_) => (),
+                                }
+                            }
+                        }
+                    },
                     LogEntry::Undecided(x) => { panic!("read undecided log entry: {:?}", x)},
                     LogEntry::StopSign(_) => { todo!() },
-                    LogEntry::Snapshotted(_) => { todo!() },
                     LogEntry::Trimmed(_) => { todo!() },
                 }
             }
@@ -81,25 +99,44 @@ fn get_prev_value_after_decide(key: &Key, mut prev_val: Option<Value>, prev_deci
             if prev_decided_idx + (i as u64) == new_decided_idx {
                 break // only read until the operation's entry's index
             }
-            if let LogEntry::Decided(cmd) = entry {
-                match cmd {
-                    RSMCommand::LinearizableRead(_) => (),
-                    RSMCommand::Put((_, kv)) => {
-                        if kv.key == *key {
-                            prev_val = Some(kv.value.clone());
+            match entry {
+                LogEntry::Decided(cmd) => {
+                    match cmd {
+                        RSMCommand::LinearizableRead(_) => (),
+                        RSMCommand::Put((_, kv)) => {
+                            if kv.key == *key {
+                                prev_val = Some(kv.value.clone());
+                            }
+                        },
+                        RSMCommand::Delete((_, del_key)) => {
+                            if *del_key == *key {
+                                prev_val = None;
+                            }
+                        },
+                        RSMCommand::CAS((_, kv, exp_val)) => {
+                            if kv.key == *key && kv.value == *exp_val {
+                                prev_val = Some(kv.value.clone());
+                            }
+                        },
+                    }
+                },
+                LogEntry::Snapshotted(entry) => {
+                    if let Some(v) = entry.snapshot.snapshotted.get(key) {
+                        for cmd in v {
+                            match cmd {
+                                RSMCommand::LinearizableRead(_) => (),
+                                RSMCommand::Put((_, kv)) => { prev_val = Some(kv.value.clone()); },
+                                RSMCommand::Delete(_) => { prev_val = None; },
+                                RSMCommand::CAS((_, kv, exp_val)) => {
+                                    if kv.value == *exp_val {
+                                        prev_val = Some(kv.value.clone());
+                                    }
+                                },
+                            }
                         }
-                    },
-                    RSMCommand::Delete((_, del_key)) => {
-                        if *del_key == *key {
-                            prev_val = None;
-                        }
-                    },
-                    RSMCommand::CAS((_, kv, exp_val)) => {
-                        if kv.key == *key && kv.value == *exp_val {
-                            prev_val = Some(kv.value.clone());
-                        }
-                    },
-                }
+                    }
+                },
+                _ => (),
             }
         }
     }
@@ -140,4 +177,9 @@ pub async fn cas(key: Key, new_value: Value, expected_value: Value) -> Result<Op
     // read entries that were decided in the meantime, to get latest previous value
     prev_value = get_prev_value_after_decide(&key, prev_value, prev_idx, idx);
     Ok(prev_value.map(|value| KeyValue{key, value}))
+}
+
+pub async fn snapshot() -> Result<(), CompactionErr> {
+    RSM::instance().lock().unwrap().omnipaxos.snapshot(None, false)?;
+    Ok(())
 }

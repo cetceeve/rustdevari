@@ -1,2 +1,3 @@
 /target
 !/target/release/etcd
+!/target/debug/etcd

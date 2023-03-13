@@ -10,13 +10,13 @@
 - [x] perfect link (omission model)
 - [ ] crash recovery
 #### Want
-- [ ] snapshots
+- [x] snapshots
 - [ ] configuration changes
 ### Testing
 - [x] linearizability checker
 - [ ] measure availability / show that progress is being made during partitions
-- [ ] test crash recovery
-- [ ] test cases for all partial connectivity scenarios
+- [ ] make crash recovery testable
+- [ ] test cases for all interesting failure scenarios
 - [ ] sequential consistency checker?
 
 

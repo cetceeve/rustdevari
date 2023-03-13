@@ -1,9 +1,10 @@
 use crate::types::{KeyValue, Key, Value};
+use crate::snapshot::OPSnapshot;
 
+use omnipaxos_core::messages::sequence_paxos::{PaxosMessage, PaxosMsg};
 use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::{NodeId, LogEntry}};
 use omnipaxos_storage::persistent_storage::*;
 use serde::{Serialize, Deserialize};
-use serde_json;
 use tokio::time;
 use axum::extract::Json;
 use reqwest;
@@ -47,41 +48,8 @@ lazy_static! {
 }
 
 static mut INSTANCE: Option<Arc<Mutex<RSM>>> = None;
-// static mut COMMAND_COUNTER: Option<Arc<Mutex<u64>>> = None; // TODO: should not be 0 after crash recovery
-// static mut OUT_MSG_COUNTER: Option<Arc<Mutex<u64>>> = None; // TODO: should not be 0 after crash recovery
-static mut DISK_STATE_LOCK: Option<Arc<Mutex<bool>>> = None;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DiskState {
-    cmd_counter: u64,
-    out_msg_counter: u64,
-    outgoing_buffer: Vec<(u64, String, OmniPaxosMessage)>,
-    delivered_msgs: HashMap<NodeId, Vec<u64>>,
-}
-
-/// should only be called when holding the RSM lock
-fn get_disk_state() -> DiskState {
-    if let Ok(text) = std::fs::read_to_string("disk_state.json") {
-        serde_json::from_str(&text).unwrap()
-    } else {
-        let mut delivered_msgs = HashMap::default();
-        for i in 0..PEERS.len() {
-            delivered_msgs.insert(PEERS[i], vec![]);
-        }
-        DiskState{
-            cmd_counter: 0,
-            out_msg_counter: 0,
-            outgoing_buffer: vec![],
-            delivered_msgs,
-        }
-    }
-}
-
-/// should be called before dropping the RSM lock
-fn write_disk_state(state: DiskState) {
-    let text = serde_json::to_string(&state).unwrap();
-    std::fs::write("disk_state.json", text).unwrap();
-}
+static mut COMMAND_COUNTER: Option<Arc<Mutex<u64>>> = None;
+static mut OUT_MSG_COUNTER: Option<Arc<Mutex<u64>>> = None;
 
 /// Generates a globally unique id for an RSMCommand
 fn generate_cmd_id() -> (u64, u64) {
@@ -89,12 +57,24 @@ fn generate_cmd_id() -> (u64, u64) {
         let unlocked = if let Some(ref x) = COMMAND_COUNTER {
             x.clone()
         } else {
-            let x = Arc::new(Mutex::new(0));
+            let val = if let Ok(texta) = std::fs::read_to_string("/data/etcd_cmd_id_a") {
+                if let Ok(n) = texta.parse() {
+                    n
+                } else {
+                    if let Ok(textb) = std::fs::read_to_string("/data/etcd_cmd_id_b") {
+                        if let Ok(n) = textb.parse() { n } else { 0 }
+                    } else { 0 }
+                }
+            } else { 0 };
+            let x = Arc::new(Mutex::new(val));
             COMMAND_COUNTER = Some(x.clone());
             x
         };
         let mut counter = unlocked.lock().unwrap();
         *counter += 1;
+        // we write redundant files, in case we crash while writing one of them
+        std::fs::write("/data/etcd_cmd_id_a", counter.to_string()).unwrap();
+        std::fs::write("/data/etcd_cmd_id_b", counter.to_string()).unwrap();
         (*PID, *counter)
     }
 }
@@ -105,12 +85,24 @@ fn generate_sequence_id() -> u64 {
         let unlocked = if let Some(ref x) = OUT_MSG_COUNTER {
             x.clone()
         } else {
-            let x = Arc::new(Mutex::new(0));
+            let val = if let Ok(texta) = std::fs::read_to_string("/data/etcd_sequence_id_a") {
+                if let Ok(n) = texta.parse() {
+                    n
+                } else {
+                    if let Ok(textb) = std::fs::read_to_string("/data/etcd_sequence_id_b") {
+                        if let Ok(n) = textb.parse() { n } else { 0 }
+                    } else { 0 }
+                }
+            } else { 0 };
+            let x = Arc::new(Mutex::new(val));
             OUT_MSG_COUNTER = Some(x.clone());
             x
         };
         let mut counter = unlocked.lock().unwrap();
         *counter += 1;
+        // we write redundant files, in case we crash while writing one of them
+        std::fs::write("/data/etcd_sequence_id_a", counter.to_string()).unwrap();
+        std::fs::write("/data/etcd_sequence_id_b", counter.to_string()).unwrap();
         *counter
     }
 }
@@ -150,14 +142,15 @@ impl RSMCommand {
     }
 }
 
-type OmniPaxosSnapShot = ();
-type OmniPaxosMessage = Message<RSMCommand, OmniPaxosSnapShot>;
-type OmniPaxosStorage = PersistentStorage<RSMCommand, OmniPaxosSnapShot>;
-type OmniPaxosType = OmniPaxos<RSMCommand, (), OmniPaxosStorage>;
+type OmniPaxosMessage = Message<RSMCommand, OPSnapshot>;
+type OmniPaxosStorage = PersistentStorage<RSMCommand, OPSnapshot>;
+type OmniPaxosType = OmniPaxos<RSMCommand, OPSnapshot, OmniPaxosStorage>;
 
 pub struct RSM {
     pub omnipaxos: OmniPaxosType,
     addrs: HashMap<NodeId, String>,
+    outgoing_buffer: Vec<(u64, String, OmniPaxosMessage)>,
+    delivered_msgs: HashMap<NodeId, Vec<u64>>,
 }
 
 impl RSM {
@@ -169,20 +162,24 @@ impl RSM {
             } else {
                 let op_config = OmniPaxosConfig{
                     pid: *PID,
-                    configuration_id: 1, // TODO: what about crash recovery, or reconfiguration?
+                    configuration_id: 1,
                     peers: PEERS.clone(),
                     ..Default::default()
                 };
+                let mut storage_config = PersistentStorageConfig::default();
+                storage_config.set_path("/data/op_storage".to_string());
+                let storage = PersistentStorage::open(storage_config);
+                let mut omnipaxos = op_config.build(storage);
 
                 let mut addrs = HashMap::default();
                 let mut delivered_msgs = HashMap::default();
                 for i in 0..PEERS.len() {
+                    omnipaxos.reconnected(PEERS[i]);
                     addrs.insert(PEERS[i], PEER_DOMAINS[i].clone());
                     delivered_msgs.insert(PEERS[i], vec![]);
                 }
-                let storage = PersistentStorage::new(PersistentStorageConfig::default());
                 let rsm = Arc::new(Mutex::new(RSM{
-                    omnipaxos: op_config.build(storage),
+                    omnipaxos,
                     addrs,
                     outgoing_buffer: vec![],
                     delivered_msgs,
@@ -202,7 +199,8 @@ pub async fn append(cmd: RSMCommand) -> Result<u64, ()> {
         let unlocked = RSM::instance();
         let mut rsm = unlocked.lock().unwrap();
         start_decided_idx = rsm.omnipaxos.get_decided_idx();
-        if let Err(_) = rsm.omnipaxos.append(cmd.clone()) {
+        if let Err(e) = rsm.omnipaxos.append(cmd.clone()) {
+            println!("DEBUG: {:?}", e);
             return Err(());
         }
     }
@@ -284,12 +282,22 @@ pub async fn run() {
 
 /// Receives an omnipaxos message and delivers it exactly once
 pub async fn handle_msg_http(Json((sequence_id, msg)): Json<(u64, OmniPaxosMessage)>) {
-    match msg {
-        Message::SequencePaxos(ref x) => println!("{}: {:?}", sequence_id, x),
-        _ => (),
-    }
     let unlocked = RSM::instance();
     let mut rsm = unlocked.lock().unwrap();
+    if let Message::SequencePaxos(ref x) = msg {
+        // if we are dealing with a PrepareReq, it is from a crashed node. -> remove queued messages for that node
+        if let PaxosMessage{from, to: _, msg: PaxosMsg::PrepareReq} = x {
+            let mut i = 0;
+            while i < rsm.outgoing_buffer.len() {
+                if rsm.outgoing_buffer[i].2.get_sender() == *from {
+                    rsm.outgoing_buffer.remove(i);
+                } else {
+                    i += 1;
+                }
+            }
+        }
+        println!("{}: {:?}", sequence_id, x);
+    }
     if let OmniPaxosMessage::SequencePaxos(_) = msg {
         let delivered_msgs = rsm.delivered_msgs.get_mut(&msg.get_sender()).unwrap();
         if delivered_msgs.contains(&sequence_id) {
@@ -298,5 +306,5 @@ pub async fn handle_msg_http(Json((sequence_id, msg)): Json<(u64, OmniPaxosMessa
             delivered_msgs.push(sequence_id);
         }
     }
-    RSM::instance().lock().unwrap().omnipaxos.handle_incoming(msg.clone());
+    rsm.omnipaxos.handle_incoming(msg.clone());
 }
