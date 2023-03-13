@@ -23,7 +23,7 @@ try:
     session = new_session()
 
     # partition the network
-    # partition(session, [["etcd1"],["etcd2","etcd3"]])
+    partition(session, [["etcd1"],["etcd2","etcd3"]])
 
     # write something
     put(session, futures_list, 1, "1", "1")
@@ -31,19 +31,18 @@ try:
 
     sleep(0.5)
 
-    # crash(session, 2)
+    crash(session, 3)
+    crash(session, 2)
     crash(session, 1)
 
-    sleep(2)
+    sleep(1)
 
     # try to read it
     read(session, futures_list, 1, "1")
     read(session, futures_list, 2, "1")
 
     sleep(1)
-
-    # print_log(session, 1)
-    # print_log(session, 2)
+    # snapshot(session, 3)
 
     # un-partition the network
     partition(session, [["etcd1","etcd2","etcd3"]])
@@ -54,9 +53,6 @@ try:
     cas(session, futures_list, 3, "1", "4", "1")
     sleep(0.1)
     
-    # print_log(session, 1)
-    # print_log(session, 2)
-
     read(session, futures_list, 2, "1")
 
     sleep(1)
@@ -66,9 +62,6 @@ try:
 
     sleep(3)
 
-    # print_log(session, 1)
-    # print_log(session, 2)
-    
     result_events = collect_results(futures_list)
 
 except Exception as e:

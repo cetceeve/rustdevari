@@ -7,8 +7,6 @@ import json
 
 MAX_TIMEOUT = 8
 TIMEOUT = 3
-# proxies = {"http": "http://localhost:5000"}
-proxies = {}
 
 def new_session():
     def timing(r, *args, **kwargs):
@@ -26,26 +24,26 @@ def partition(session, partitions):
 
 def crash(session, node):
     try:
-        session.post(f"http://localhost:808{node}/crash", proxies=proxies, timeout=1).result()
+        session.post(f"http://localhost:808{node}/crash", timeout=1).result()
     except:
         pass
 
 def snapshot(session, node):
     try:
-        session.post(f"http://localhost:808{node}/snapshot", proxies=proxies, timeout=1).result()
+        session.post(f"http://localhost:808{node}/snapshot", timeout=1).result()
     except:
         print("snapshot")
         pass
 
 def print_log(session, node):
     try:
-        session.get(f"http://localhost:808{node}/print_log", proxies=proxies, timeout=1).result()
+        session.get(f"http://localhost:808{node}/print_log", timeout=1).result()
     except:
         print("print_log")
         pass
 
 def sc_read(session, futures_list, node, key):
-    future = session.get(f"http://localhost:808{node}/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.get(f"http://localhost:808{node}/get/{key}", timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key}
     future.op = "read"
@@ -54,7 +52,7 @@ def sc_read(session, futures_list, node, key):
     return future
 
 def read(session, futures_list, node, key):
-    future = session.get(f"http://localhost:808{node}/linearizable/get/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.get(f"http://localhost:808{node}/linearizable/get/{key}", timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key}
     future.op = "read"
@@ -63,7 +61,7 @@ def read(session, futures_list, node, key):
     return future
 
 def put(session, futures_list, node, key, val):
-    future = session.put(f"http://localhost:808{node}/put", json={"key":key, "value":val}, proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.put(f"http://localhost:808{node}/put", json={"key":key, "value":val}, timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key, "value": val}
     future.op = "put"
@@ -72,7 +70,7 @@ def put(session, futures_list, node, key, val):
     return future
 
 def cas(session, futures_list, node, key, new_val, expected_val):
-    future = session.post(f"http://localhost:808{node}/cas", json={"key":key, "new_value":new_val, "expected_value":expected_val}, proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.post(f"http://localhost:808{node}/cas", json={"key":key, "new_value":new_val, "expected_value":expected_val}, timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key, "new_value": new_val, "expected_value": expected_val}
     future.op = "cas"
@@ -81,7 +79,7 @@ def cas(session, futures_list, node, key, new_val, expected_val):
     return future
 
 def delete(session, futures_list, node, key):
-    future = session.delete(f"http://localhost:808{node}/delete/{key}", proxies=proxies, timeout=MAX_TIMEOUT)
+    future = session.delete(f"http://localhost:808{node}/delete/{key}", timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {"key": key}
     future.op = "delete"
@@ -98,7 +96,6 @@ def collect_results(futures_list):
             r = f.result()
         except:
             not_done.add(f)
-            print(f"HELLLLO {f}")
             continue
         if r.ok:
             results_list.append({

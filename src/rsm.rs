@@ -1,8 +1,11 @@
 use crate::types::{KeyValue, Key, Value};
 use crate::snapshot::OPSnapshot;
 
-use omnipaxos_core::messages::sequence_paxos::{PaxosMessage, PaxosMsg};
 use omnipaxos_core::{omni_paxos::{OmniPaxos, OmniPaxosConfig}, messages::Message, util::{NodeId, LogEntry}};
+
+#[cfg(not(feature = "crash_recovery"))]
+use omnipaxos_storage::memory_storage::*;
+#[cfg(feature = "crash_recovery")]
 use omnipaxos_storage::persistent_storage::*;
 use serde::{Serialize, Deserialize};
 use tokio::time;
@@ -10,6 +13,9 @@ use axum::extract::Json;
 use reqwest;
 use std::{env, sync::{Arc, Mutex}, collections::HashMap};
 
+
+#[cfg(all(feature = "pl", feature = "crash_recovery"))]
+compile_error!("features `pl` and `crash_recovery` are mutually exclusive");
 
 lazy_static! {
     static ref OUTGOING_INTERVAL: u64 = if let Ok(var) = env::var("OUTGOING_INTERVAL") {
@@ -49,6 +55,7 @@ lazy_static! {
 
 static mut INSTANCE: Option<Arc<Mutex<RSM>>> = None;
 static mut COMMAND_COUNTER: Option<Arc<Mutex<u64>>> = None;
+#[cfg(feature = "pl")]
 static mut OUT_MSG_COUNTER: Option<Arc<Mutex<u64>>> = None;
 
 /// Generates a globally unique id for an RSMCommand
@@ -80,6 +87,7 @@ fn generate_cmd_id() -> (u64, u64) {
 }
 
 /// Generates a locally unique id for use as a sequence_id on SequencePaxos Messages
+#[cfg(feature = "pl")]
 fn generate_sequence_id() -> u64 {
     unsafe {
         let unlocked = if let Some(ref x) = OUT_MSG_COUNTER {
@@ -143,13 +151,20 @@ impl RSMCommand {
 }
 
 type OmniPaxosMessage = Message<RSMCommand, OPSnapshot>;
+#[cfg(not(feature = "crash_recovery"))]
+type OmniPaxosStorage = MemoryStorage<RSMCommand, OPSnapshot>;
+#[cfg(feature = "crash_recovery")]
 type OmniPaxosStorage = PersistentStorage<RSMCommand, OPSnapshot>;
 type OmniPaxosType = OmniPaxos<RSMCommand, OPSnapshot, OmniPaxosStorage>;
 
 pub struct RSM {
     pub omnipaxos: OmniPaxosType,
     addrs: HashMap<NodeId, String>,
+    #[cfg(not(feature = "pl"))]
+    connected: HashMap<NodeId, bool>,
+    #[cfg(feature = "pl")]
     outgoing_buffer: Vec<(u64, String, OmniPaxosMessage)>,
+    #[cfg(feature = "pl")]
     delivered_msgs: HashMap<NodeId, Vec<u64>>,
 }
 
@@ -166,23 +181,41 @@ impl RSM {
                     peers: PEERS.clone(),
                     ..Default::default()
                 };
-                let mut storage_config = PersistentStorageConfig::default();
-                storage_config.set_path("/data/op_storage".to_string());
-                let storage = PersistentStorage::open(storage_config);
-                let mut omnipaxos = op_config.build(storage);
+
+                #[cfg(not(feature = "crash_recovery"))]
+                let omnipaxos = op_config.build(MemoryStorage::default());
+                #[cfg(feature = "crash_recovery")]
+                let omnipaxos = {
+                    let mut storage_config = PersistentStorageConfig::default();
+                    storage_config.set_path("/data/op_storage".to_string());
+                    let storage = PersistentStorage::open(storage_config);
+                    op_config.build(storage)
+                };
 
                 let mut addrs = HashMap::default();
+                #[cfg(not(feature = "pl"))]
+                let mut connected = HashMap::default();
+                #[cfg(feature = "pl")]
                 let mut delivered_msgs = HashMap::default();
                 for i in 0..PEERS.len() {
-                    omnipaxos.reconnected(PEERS[i]);
                     addrs.insert(PEERS[i], PEER_DOMAINS[i].clone());
+                    #[cfg(not(feature = "pl"))]
+                    connected.insert(PEERS[i], false);
+                    #[cfg(feature = "pl")]
                     delivered_msgs.insert(PEERS[i], vec![]);
                 }
+                #[cfg(feature = "pl")]
                 let rsm = Arc::new(Mutex::new(RSM{
                     omnipaxos,
                     addrs,
                     outgoing_buffer: vec![],
                     delivered_msgs,
+                }));
+                #[cfg(not(feature = "pl"))]
+                let rsm = Arc::new(Mutex::new(RSM{
+                    omnipaxos,
+                    addrs,
+                    connected,
                 }));
                 INSTANCE = Some(rsm.clone());
                 rsm
@@ -223,6 +256,37 @@ pub async fn append(cmd: RSMCommand) -> Result<u64, ()> {
     }
 }
 
+#[cfg(not(feature = "pl"))]
+async fn send_outgoing_msgs() {
+    let messages: Vec<(OmniPaxosMessage, String)> = { // open a new scope, so we can drop the lock on RSM asap
+        let unlocked = RSM::instance();
+        let mut rsm = unlocked.lock().unwrap();
+        let msgs = rsm.omnipaxos.outgoing_messages();
+        msgs.into_iter().map(|msg| {
+            let receiver_id = msg.get_receiver();
+            (msg, rsm.addrs.get(&receiver_id).unwrap().to_owned())
+        }).collect()
+    };
+    for msg in messages {
+        let url = format!("http://{}/omnipaxos", msg.1);
+        match reqwest::Client::new().post(url).json(&msg.0).send().await {
+            Ok(_) => {
+                let unlocked = RSM::instance();
+                let mut rsm = unlocked.lock().unwrap();
+                if let Some(false) = rsm.connected.insert(msg.0.get_receiver(), true) {
+                    rsm.omnipaxos.reconnected(msg.0.get_receiver());
+                }
+            },
+            Err(_) => {
+                let unlocked = RSM::instance();
+                let mut rsm = unlocked.lock().unwrap();
+                rsm.connected.insert(msg.0.get_receiver(), false);
+            },
+        }
+    }
+}
+
+#[cfg(feature = "pl")]
 async fn send_outgoing_msgs() {
     let mut ble_msg_buf = vec![];
 
@@ -280,22 +344,23 @@ pub async fn run() {
     }
 }
 
+/// Receives an omnipaxos message and delivers it
+#[cfg(not(feature = "pl"))]
+pub async fn handle_msg_http(Json(msg): Json<OmniPaxosMessage>) {
+    let unlocked = RSM::instance();
+    let mut rsm = unlocked.lock().unwrap();
+    if let Message::SequencePaxos(ref x) = msg {
+        println!("{:?}", x);
+    }
+    rsm.omnipaxos.handle_incoming(msg.clone());
+}
+
 /// Receives an omnipaxos message and delivers it exactly once
+#[cfg(feature = "pl")]
 pub async fn handle_msg_http(Json((sequence_id, msg)): Json<(u64, OmniPaxosMessage)>) {
     let unlocked = RSM::instance();
     let mut rsm = unlocked.lock().unwrap();
     if let Message::SequencePaxos(ref x) = msg {
-        // if we are dealing with a PrepareReq, it is from a crashed node. -> remove queued messages for that node
-        if let PaxosMessage{from, to: _, msg: PaxosMsg::PrepareReq} = x {
-            let mut i = 0;
-            while i < rsm.outgoing_buffer.len() {
-                if rsm.outgoing_buffer[i].2.get_sender() == *from {
-                    rsm.outgoing_buffer.remove(i);
-                } else {
-                    i += 1;
-                }
-            }
-        }
         println!("{}: {:?}", sequence_id, x);
     }
     if let OmniPaxosMessage::SequencePaxos(_) = msg {

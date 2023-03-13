@@ -42,7 +42,7 @@ async fn main() {
         .route("/linearizable/get/:key", get(handle_linearizable_get))
         .route("/snapshot", post(handle_snapshot));
 
-    rsm::RSM::instance();
+    // rsm::RSM::instance();
 
     // start event loop
     tokio::spawn(rsm::run());
