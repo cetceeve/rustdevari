@@ -8,14 +8,14 @@
 - [x] CAS operation
 - [x] Delete operation
 - [x] perfect link (omission model)
-- [ ] crash recovery
+- [x] crash recovery
 #### Want
-- [x] snapshots
+- [ ] snapshots
 - [ ] configuration changes
 ### Testing
 - [x] linearizability checker
 - [ ] measure availability / show that progress is being made during partitions
-- [ ] make crash recovery testable
+- [x] make crash recovery testable
 - [ ] test cases for all interesting failure scenarios
 - [ ] sequential consistency checker?
 
