@@ -48,6 +48,7 @@ impl Store {
                             },
                             RSMCommand::Delete((_, key)) => { self.map.remove(&key); },
                             RSMCommand::LinearizableRead(_) => (),
+                            RSMCommand::Clear(_) => { self.map.clear(); },
                         }
                     },
                     LogEntry::Snapshotted(entry) => {
@@ -63,6 +64,7 @@ impl Store {
                                         }
                                     },
                                     RSMCommand::Delete((_, key)) => { self.map.remove(&key); },
+                                    RSMCommand::Clear(_) => { self.map.clear(); },
                                     RSMCommand::LinearizableRead(_) => (),
                                 }
                             }
@@ -103,6 +105,7 @@ fn get_prev_value_after_decide(key: &Key, mut prev_val: Option<Value>, prev_deci
                 LogEntry::Decided(cmd) => {
                     match cmd {
                         RSMCommand::LinearizableRead(_) => (),
+                        RSMCommand::Clear(_) => prev_val = None,
                         RSMCommand::Put((_, kv)) => {
                             if kv.key == *key {
                                 prev_val = Some(kv.value.clone());
@@ -125,6 +128,7 @@ fn get_prev_value_after_decide(key: &Key, mut prev_val: Option<Value>, prev_deci
                         for cmd in v {
                             match cmd {
                                 RSMCommand::LinearizableRead(_) => (),
+                                RSMCommand::Clear(_) => { prev_val = None; },
                                 RSMCommand::Put((_, kv)) => { prev_val = Some(kv.value.clone()); },
                                 RSMCommand::Delete(_) => { prev_val = None; },
                                 RSMCommand::CAS((_, kv, exp_val)) => {
@@ -165,6 +169,12 @@ pub async fn delete(key: Key) -> Result<Option<KeyValue>,()> {
     // read entries that were decided in the meantime, to get latest previous value
     prev_value = get_prev_value_after_decide(&key, prev_value, prev_idx, idx);
     Ok(prev_value.map(|value| KeyValue{key, value}))
+}
+
+/// Clears the replicated store
+pub async fn clear() -> Result<(), ()> {
+    rsm::append(RSMCommand::new_clear()).await?;
+    Ok(())
 }
 
 /// Performs linearizable CAS operation

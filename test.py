@@ -8,6 +8,7 @@ from util import (
     delete,
     partition,
     crash,
+    clear,
     new_session,
     snapshot,
     print_log,
@@ -51,14 +52,22 @@ try:
 
     cas(session, futures_list, 1, "1", "3", "2")
     cas(session, futures_list, 3, "1", "4", "1")
+
     sleep(0.1)
     
     read(session, futures_list, 2, "1")
 
+    # clear and see if it's clear
+    clear(session, futures_list, 3)
+
+    sleep(0.1)
+
+    read(session, futures_list, 1, "1")
+
     sleep(1)
 
     # cleanup
-    delete(session, futures_list, 1, "1")
+    clear(session, futures_list, 2)
 
     sleep(3)
 

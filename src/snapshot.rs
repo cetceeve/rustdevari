@@ -24,6 +24,7 @@ impl Snapshot<RSMCommand> for OPSnapshot {
                         snapshotted.insert(kv.key.clone(), vec![cmd.clone()]);
                     }
                 },
+                RSMCommand::Clear(_) => { snapshotted.clear(); },
             }
         }
         Self { snapshotted }
@@ -43,6 +44,7 @@ impl Snapshot<RSMCommand> for OPSnapshot {
                             self.snapshotted.insert(k.clone(), vec![cmd.clone()]);
                         }
                     },
+                    RSMCommand::Clear(_) => { self.snapshotted.clear(); },
                 }
             }
         }

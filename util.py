@@ -42,6 +42,15 @@ def print_log(session, node):
         print("print_log")
         pass
 
+def clear(session, futures_list, node):
+    future = session.post(f"http://etcd{node}:8080/clear", timeout=MAX_TIMEOUT)
+    future.start = time()
+    future.input = {}
+    future.op = "clear"
+    future.node = node
+    futures_list.append(future)
+    return future
+
 def sc_read(session, futures_list, node, key):
     future = session.get(f"http://localhost:808{node}/get/{key}", timeout=MAX_TIMEOUT)
     future.start = time()
@@ -158,7 +167,7 @@ def wing_gong(results_list):
                 result = {"prev_kv": None}
                 if key in self.state:
                     result["prev_kv"] = {"key": key, "value": self.state[key]}
-                del self.state[key]
+                    del self.state[key]
                 return result
             if op == "read":
                 key = event["input"]["key"]
@@ -166,6 +175,9 @@ def wing_gong(results_list):
                     return {"key": key, "value": None}
                 else:
                     return {"key": key, "value": self.state[key]}
+            if op == "clear":
+                self.state.clear()
+                return None
             
     def search(h, s):
         print(f"state: {s.state}, events left:")
