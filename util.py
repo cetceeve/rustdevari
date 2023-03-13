@@ -178,15 +178,13 @@ def wing_gong(results_list):
         min_end = h[0]["end"]
         for event in h:
             if event["start"] >= min_end:
-                break
+                continue
             new_s = copy.deepcopy(s)
             res = new_s.perform(event)
             new_h = copy.copy(h)
             new_h.remove(event)
             if (event["end"] == float("inf") or res == event["result"]) and search(new_h, new_s):
                 return True
-            else:
-                print(f"want: {res}, got: {event['result']}")
         return False
 
     list.sort(results_list, key=lambda x: x["end"])
