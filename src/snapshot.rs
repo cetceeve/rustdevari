@@ -24,6 +24,7 @@ impl Snapshot<RSMCommand> for OPSnapshot {
                 },
                 RSMCommand::Delete((_, key)) => { snapshotted.remove(key); },
                 RSMCommand::LinearizableRead(_) => (),
+                RSMCommand::Clear(_) => todo!(),
             }
         }
         Self { snapshotted }

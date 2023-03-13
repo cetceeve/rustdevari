@@ -28,7 +28,8 @@ async fn main() {
         .route("/get/:key", get(handle_get))
         .route("/delete/:key", delete(handle_delete))
         .route("/linearizable/get/:key", get(handle_linearizable_get))
-        .route("/snapshot", post(handle_snapshot));
+        .route("/snapshot", post(handle_snapshot))
+        .route("/clear", post(handle_clear));
 
     // start event loop
     tokio::spawn(rsm::run());

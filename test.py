@@ -6,6 +6,7 @@ from util import (
     put,
     cas,
     delete,
+    clear,
     new_session,
     snapshot,
     collect_results,
@@ -44,13 +45,18 @@ try:
     sleep(0.1)
     read(session, futures_list, 2, "1")
 
+    # clear and see if it's clear
+    clear(session, futures_list, 3)
+    sleep(0.1)
+    read(session, futures_list, 1, "1")
+
     sleep(1)
 
     # cleanup
     delete(session, futures_list, 1, "1")
 
     sleep(3)
-    
+
     result_events = collect_results(futures_list)
 
 except Exception as e:

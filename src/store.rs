@@ -48,6 +48,9 @@ impl Store {
                             },
                             RSMCommand::Delete((_, key)) => { self.map.remove(&key); },
                             RSMCommand::LinearizableRead(_) => (),
+                            RSMCommand::Clear(_) => { self.map.clear(); 
+                                //println!("Clear has been decided");
+                            },
                         }
                     },
                     LogEntry::Snapshotted(entry) => {
@@ -90,6 +93,7 @@ fn get_prev_value_after_decide(key: &Key, mut prev_val: Option<Value>, prev_deci
                 LogEntry::Decided(cmd) => {
                     match cmd {
                         RSMCommand::LinearizableRead(_) => (),
+                        RSMCommand::Clear(_) => prev_val = None,
                         RSMCommand::Put((_, kv)) => {
                             if kv.key == *key {
                                 prev_val = Some(kv.value.clone());
@@ -139,6 +143,12 @@ pub async fn delete(key: Key) -> Result<Option<KeyValue>,()> {
     // read entries that were decided in the meantime, to get latest previous value
     prev_value = get_prev_value_after_decide(&key, prev_value, prev_idx, idx);
     Ok(prev_value.map(|value| KeyValue{key, value}))
+}
+
+/// Clears the replicated store
+pub async fn clear() -> Result<(), ()> {
+    let idx = rsm::append(RSMCommand::new_clear()).await?;
+    Ok(())
 }
 
 /// Performs linearizable CAS operation

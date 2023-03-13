@@ -17,6 +17,16 @@ pub async fn handle_delete(Path(key): Path<Key>) -> (StatusCode, Json<PutRespons
     }
 }
 
+/// Clear Store store
+pub async fn handle_clear() -> (StatusCode, Json<Option<()>>) {
+    //println!("Hello from handler");
+    if let Ok(_) = store::clear().await {
+        (StatusCode::OK, Json(None))
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(None))
+    }
+}
+
 /// Linearizable read
 pub async fn handle_linearizable_get(Path(key): Path<Key>) -> (StatusCode, Json<GetResponse>) {
     if let Ok(value) = store::linearizable_get(&key).await {
