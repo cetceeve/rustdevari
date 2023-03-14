@@ -6,12 +6,14 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OPSnapshot {
-    pub snapshotted: HashMap<Key, Vec<RSMCommand>>
+    pub snapshotted: HashMap<Key, Vec<RSMCommand>>,
+    pub clear: bool,
 }
 
 impl Snapshot<RSMCommand> for OPSnapshot {
     fn create(entries: &[RSMCommand]) -> Self {
         let mut snapshotted = HashMap::new();
+        let mut clear = false;
         for cmd in entries {
             match cmd {
                 RSMCommand::LinearizableRead(_) => (),
@@ -24,16 +26,25 @@ impl Snapshot<RSMCommand> for OPSnapshot {
                         snapshotted.insert(kv.key.clone(), vec![cmd.clone()]);
                     }
                 },
-                RSMCommand::Clear(_) => { snapshotted.clear(); },
+                RSMCommand::Clear(_) => {
+                    snapshotted.clear(); clear = true;
+                },
             }
         }
-        Self { snapshotted }
+        let x = Self { snapshotted, clear };
+        println!("DEBUG: creating snapshot of len {}: {:?}",entries.len(), x);
+        x
     }
 
     fn merge(&mut self, delta: Self) {
+        if delta.clear {
+            self.clear = true;
+            self.snapshotted.clear();
+        }
         for (k, v) in delta.snapshotted {
             for cmd in v {
                 match cmd {
+                    RSMCommand::Clear(_) => (),
                     RSMCommand::LinearizableRead(_) => (),
                     RSMCommand::Put(_) => { self.snapshotted.insert(k.clone(), vec![cmd.clone()]); },
                     RSMCommand::Delete(_) => { self.snapshotted.insert(k.clone(), vec![cmd.clone()]); },
@@ -44,13 +55,12 @@ impl Snapshot<RSMCommand> for OPSnapshot {
                             self.snapshotted.insert(k.clone(), vec![cmd.clone()]);
                         }
                     },
-                    RSMCommand::Clear(_) => { self.snapshotted.clear(); },
                 }
             }
         }
     }
 
     fn use_snapshots() -> bool {
-        false
+        true
     }
 }

@@ -52,6 +52,9 @@ impl Store {
                         }
                     },
                     LogEntry::Snapshotted(entry) => {
+                        if entry.snapshot.clear {
+                            self.map.clear();
+                        }
                         for (_, v) in entry.snapshot.snapshotted.into_iter() {
                             for cmd in v {
                                 match cmd {
@@ -64,7 +67,7 @@ impl Store {
                                         }
                                     },
                                     RSMCommand::Delete((_, key)) => { self.map.remove(&key); },
-                                    RSMCommand::Clear(_) => { self.map.clear(); },
+                                    RSMCommand::Clear(_) => (),
                                     RSMCommand::LinearizableRead(_) => (),
                                 }
                             }
@@ -124,11 +127,14 @@ fn get_prev_value_after_decide(key: &Key, mut prev_val: Option<Value>, prev_deci
                     }
                 },
                 LogEntry::Snapshotted(entry) => {
+                    if entry.snapshot.clear {
+                        prev_val = None;
+                    }
                     if let Some(v) = entry.snapshot.snapshotted.get(key) {
                         for cmd in v {
                             match cmd {
                                 RSMCommand::LinearizableRead(_) => (),
-                                RSMCommand::Clear(_) => { prev_val = None; },
+                                RSMCommand::Clear(_) => (),
                                 RSMCommand::Put((_, kv)) => { prev_val = Some(kv.value.clone()); },
                                 RSMCommand::Delete(_) => { prev_val = None; },
                                 RSMCommand::CAS((_, kv, exp_val)) => {

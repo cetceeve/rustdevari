@@ -43,7 +43,7 @@ def print_log(session, node):
         pass
 
 def clear(session, futures_list, node):
-    future = session.post(f"http://etcd{node}:8080/clear", timeout=MAX_TIMEOUT)
+    future = session.post(f"http://localhost:808{node}/clear", timeout=MAX_TIMEOUT)
     future.start = time()
     future.input = {}
     future.op = "clear"

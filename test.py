@@ -43,7 +43,7 @@ try:
     read(session, futures_list, 2, "1")
 
     sleep(1)
-    # snapshot(session, 3)
+    snapshot(session, 3)
 
     # un-partition the network
     partition(session, [["etcd1","etcd2","etcd3"]])
