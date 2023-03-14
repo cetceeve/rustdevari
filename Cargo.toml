@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# omnipaxos_core = { git = "https://github.com/JonathanArns/omnipaxos" }
-# omnipaxos_storage = { git = "https://github.com/JonathanArns/omnipaxos", features = ["sled"] }
-omnipaxos_core = { path = "../omnipaxos/omnipaxos_core" }
-omnipaxos_storage = { path = "../omnipaxos/omnipaxos_storage", features = ["sled"] }
+omnipaxos_core = { git = "https://github.com/JonathanArns/omnipaxos" }
+omnipaxos_storage = { git = "https://github.com/JonathanArns/omnipaxos", features = ["sled"] }
+# omnipaxos_core = { path = "../omnipaxos/omnipaxos_core" }
+# omnipaxos_storage = { path = "../omnipaxos/omnipaxos_storage", features = ["sled"] }
 
 axum = "0.6" # our web framework
 tokio = { version = "1", features = ["full"] } # async runtime, needed for axum
