@@ -199,5 +199,7 @@ def wing_gong(results_list):
     list.sort(results_list, key=lambda x: x["end"])
     if search(results_list, S()):
         print("The execution is linearizable.")
+        return True
     else:
         print("The execution is NOT linearizable.")
+        return False
