@@ -5,7 +5,7 @@ from time import time
 import copy
 import json
 
-MAX_TIMEOUT = 8
+MAX_TIMEOUT = 10
 TIMEOUT = 3
 
 def new_session():

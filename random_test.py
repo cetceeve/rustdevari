@@ -18,6 +18,7 @@ from util import (
     print_availability,
 )
 
+N = 10
 CRASH = True
 NODES = [1, 2, 3]
 KEYS = ["k1", "k2"]
@@ -61,7 +62,7 @@ def crash_random_nodes(session):
         crash(session, node)
 
 def random_failure(session):
-    if randint(0, 2) > 0:
+    if randint(0, 2) > 0 and CRASH:
         crash_random_nodes(session)
     else:
         partition_at_random(session)
@@ -129,7 +130,7 @@ def run_single_random_test(availability):
 availability = {}
 is_linearizable = True
 n = 0
-while is_linearizable and n < 5:
+while is_linearizable and n < N:
     is_linearizable = run_single_random_test(availability)
     n += 1
 print_availability(availability)

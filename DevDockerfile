@@ -1,6 +1,6 @@
 FROM ubuntu
 
-COPY ./target/debug/etcd /usr/bin/etcd
+COPY ./target/release/etcd /usr/bin/etcd
 
 EXPOSE 8080
 

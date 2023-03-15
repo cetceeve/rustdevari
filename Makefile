@@ -1,7 +1,7 @@
 build-full:
 	sudo docker build -t op-etcd .
 build-dev:
-	cargo build --features crash_recovery
+	cargo build --release --features crash_recovery
 	sudo docker build -f DevDockerfile -t op-etcd .
 build-dev-pl:
 	cargo build --features pl
