@@ -244,8 +244,7 @@ pub async fn append(cmd: RSMCommand) -> Result<u64, ()> {
         let unlocked = RSM::instance();
         let mut rsm = unlocked.lock().unwrap();
         start_decided_idx = rsm.omnipaxos.get_decided_idx();
-        if let Err(e) = rsm.omnipaxos.append(cmd.clone()) {
-            println!("DEBUG: {:?}", e);
+        if let Err(_) = rsm.omnipaxos.append(cmd.clone()) {
             return Err(());
         }
     }
