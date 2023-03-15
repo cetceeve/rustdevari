@@ -59,6 +59,41 @@ static mut COMMAND_COUNTER: Option<Arc<Mutex<u64>>> = None;
 static mut OUT_MSG_COUNTER: Option<Arc<Mutex<u64>>> = None;
 
 /// Generates a globally unique id for an RSMCommand
+#[cfg(not(feature = "crash_recovery"))]
+fn generate_cmd_id() -> (u64, u64) {
+    unsafe {
+        let unlocked = if let Some(ref x) = COMMAND_COUNTER {
+            x.clone()
+        } else {
+            let x = Arc::new(Mutex::new(0));
+            COMMAND_COUNTER = Some(x.clone());
+            x
+        };
+        let mut counter = unlocked.lock().unwrap();
+        *counter += 1;
+        (*PID, *counter)
+    }
+}
+
+/// Generates a locally unique id for use as a sequence_id on SequencePaxos Messages
+#[cfg(feature = "pl")]
+fn generate_sequence_id() -> u64 {
+    unsafe {
+        let unlocked = if let Some(ref x) = OUT_MSG_COUNTER {
+            x.clone()
+        } else {
+            let x = Arc::new(Mutex::new(0));
+            OUT_MSG_COUNTER = Some(x.clone());
+            x
+        };
+        let mut counter = unlocked.lock().unwrap();
+        *counter += 1;
+        *counter
+    }
+}
+
+/// Generates a globally unique id for an RSMCommand
+#[cfg(feature = "crash_recovery")]
 fn generate_cmd_id() -> (u64, u64) {
     unsafe {
         let unlocked = if let Some(ref x) = COMMAND_COUNTER {
@@ -83,35 +118,6 @@ fn generate_cmd_id() -> (u64, u64) {
         std::fs::write("/data/etcd_cmd_id_a", counter.to_string()).unwrap();
         std::fs::write("/data/etcd_cmd_id_b", counter.to_string()).unwrap();
         (*PID, *counter)
-    }
-}
-
-/// Generates a locally unique id for use as a sequence_id on SequencePaxos Messages
-#[cfg(feature = "pl")]
-fn generate_sequence_id() -> u64 {
-    unsafe {
-        let unlocked = if let Some(ref x) = OUT_MSG_COUNTER {
-            x.clone()
-        } else {
-            let val = if let Ok(texta) = std::fs::read_to_string("/data/etcd_sequence_id_a") {
-                if let Ok(n) = texta.parse() {
-                    n
-                } else {
-                    if let Ok(textb) = std::fs::read_to_string("/data/etcd_sequence_id_b") {
-                        if let Ok(n) = textb.parse() { n } else { 0 }
-                    } else { 0 }
-                }
-            } else { 0 };
-            let x = Arc::new(Mutex::new(val));
-            OUT_MSG_COUNTER = Some(x.clone());
-            x
-        };
-        let mut counter = unlocked.lock().unwrap();
-        *counter += 1;
-        // we write redundant files, in case we crash while writing one of them
-        std::fs::write("/data/etcd_sequence_id_a", counter.to_string()).unwrap();
-        std::fs::write("/data/etcd_sequence_id_b", counter.to_string()).unwrap();
-        *counter
     }
 }
 
