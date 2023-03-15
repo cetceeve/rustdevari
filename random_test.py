@@ -37,7 +37,7 @@ def random_value():
 
 def random_set_of_nodes():
     nodes = NODES.copy()
-    for _ in range(randint(1, len(NODES))):
+    for _ in range(randint(0, len(NODES))):
         try:
             nodes.remove(random_node())
         except:
