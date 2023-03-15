@@ -120,8 +120,10 @@ fn get_prev_value_after_decide(key: &Key, mut prev_val: Option<Value>, prev_deci
                             }
                         },
                         RSMCommand::CAS((_, kv, exp_val)) => {
-                            if kv.key == *key && kv.value == *exp_val {
-                                prev_val = Some(kv.value.clone());
+                            if let Some(ref prev) = prev_val {
+                                if kv.key == *key && *prev == *exp_val {
+                                    prev_val = Some(kv.value.clone());
+                                }
                             }
                         },
                     }
