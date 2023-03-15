@@ -5,7 +5,7 @@ consensus protocol, instead of Raft or ZAB.
 
 ## How to run and test
 The easiest way to spin up a local cluster on docker-compose for testing is like this:
-```
+```sh
 make full  # using our Makefile
 
 # or if that doesn't work for you...
@@ -16,7 +16,7 @@ If you would like to build on your local machine, you can do the following inste
 This also gives you more control over which features to use. We support two mutually exclusive
 feature flags: `crash_recovery` to enable persistent storage and `pl` to enable a Perfect Link channel
 implementation.
-```
+```sh
 # pick your build command
 cargo build --release
 cargo build --release --features crash_recovery
@@ -30,7 +30,7 @@ If you take a look at the docker-compose file, you will notice, that we start no
 service, but also an instance of the ditm testing proxy. We route all network traffik between nodes through this proxy
 to allow us to simulate arbitrary network partitions.
 Our testing setup makes heavy use of this. You can run it like the following.
-```python
+```sh
 # first start the cluster like above
 # then run the test script
 python random_test.py
@@ -40,7 +40,7 @@ partitions and checking the generated traces for linearizability. It can be conf
 
 We also have a special test case that can demonstate a bug in the current version of the Omnipaxos library.
 To reproduce the bug, go into the `Cargo.toml` file of this project, switch the commented Omnipaxos dependencies and run the following.
-```
+```sh
 # first start the cluster like above
 # then run the test script
 python snapshot_test.py
