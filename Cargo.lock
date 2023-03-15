@@ -619,7 +619,7 @@ dependencies = [
 [[package]]
 name = "omnipaxos_core"
 version = "0.1.0"
-source = "git+https://github.com/JonathanArns/omnipaxos#14502307238121a7ed5d69bf3fff41de7e1e360e"
+source = "git+https://github.com/JonathanArns/omnipaxos#7acaa514a01c1a570112906c08ef66b0b0b64d63"
 dependencies = [
  "serde",
 ]
@@ -627,7 +627,7 @@ dependencies = [
 [[package]]
 name = "omnipaxos_storage"
 version = "0.1.0"
-source = "git+https://github.com/JonathanArns/omnipaxos#14502307238121a7ed5d69bf3fff41de7e1e360e"
+source = "git+https://github.com/JonathanArns/omnipaxos#7acaa514a01c1a570112906c08ef66b0b0b64d63"
 dependencies = [
  "bincode",
  "commitlog",

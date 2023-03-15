@@ -19,7 +19,6 @@ def partition(session, partitions):
     try:
         session.get(f"http://localhost:8000/block_config?&mode=partitions&partitions={json.dumps(partitions)}").result()
     except:
-        print("partition")
         pass
 
 def crash(session, node):
@@ -32,14 +31,12 @@ def snapshot(session, node):
     try:
         session.post(f"http://localhost:808{node}/snapshot", timeout=1).result()
     except:
-        print("snapshot")
         pass
 
 def print_log(session, node):
     try:
         session.get(f"http://localhost:808{node}/print_log", timeout=1).result()
     except:
-        print("print_log")
         pass
 
 def clear(session, futures_list, node):
@@ -180,8 +177,8 @@ def wing_gong(results_list):
                 return None
             
     def search(h, s):
-        print(f"state: {s.state}, events left:")
-        pprint(h)
+        # print(f"state: {s.state}, events left:")
+        # pprint(h)
         if len(h) == 0:
             return True
         min_end = h[0]["end"]
@@ -201,5 +198,24 @@ def wing_gong(results_list):
         print("The execution is linearizable.")
         return True
     else:
+        pprint(results_list)
         print("The execution is NOT linearizable.")
         return False
+
+def get_availability(results_list, availability={}):
+    for event in results_list:
+        node = event["node"]
+        if not node in availability:
+            availability[node] = (0, 0)
+        if event["end"] < float("inf"):
+            (returns, invokes) = availability[node]
+            availability[node] = (returns+1, invokes+1)
+        else:
+            (returns, invokes) = availability[node]
+            availability[node] = (returns, invokes+1)
+    return availability
+
+def print_availability(availability):
+    print("Availability per node:")
+    for (node, (returns, invokes)) in availability.items():
+        print(f"Node {node} responded to {(returns / invokes * 100):.1f}% of client requests.")

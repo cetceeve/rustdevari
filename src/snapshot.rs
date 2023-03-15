@@ -31,9 +31,7 @@ impl Snapshot<RSMCommand> for OPSnapshot {
                 },
             }
         }
-        let x = Self { snapshotted, clear };
-        println!("DEBUG: creating snapshot of len {}: {:?}",entries.len(), x);
-        x
+        Self { snapshotted, clear }
     }
 
     fn merge(&mut self, delta: Self) {

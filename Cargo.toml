@@ -9,6 +9,10 @@ edition = "2021"
 omnipaxos_core = { git = "https://github.com/JonathanArns/omnipaxos" }
 omnipaxos_storage = { git = "https://github.com/JonathanArns/omnipaxos", features = ["sled"] }
 
+# use these dependencies instead of the above to demonstrate the bug in snapshot log synchronization
+# omnipaxos_core = { git = "https://github.com/JonathanArns/omnipaxos", branch = "unfixed" }
+# omnipaxos_storage = { git = "https://github.com/JonathanArns/omnipaxos", features = ["sled"], branch = "unfixed" }
+
 axum = "0.6" # our web framework
 tokio = { version = "1", features = ["full"] } # async runtime, needed for axum
 hyper = { version = "0.14", features = ["full"] } # low-level http stack
