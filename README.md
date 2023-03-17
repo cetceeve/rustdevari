@@ -68,4 +68,3 @@ key-value operations are linearizable by default, since they are decided before 
 - [x] measure availability / show that progress is being made during partitions
 - [x] make crash recovery testable
 - [x] randomized testing with failure injection
-
