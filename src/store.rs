@@ -158,8 +158,8 @@ fn get_prev_value_after_decide(key: &Key, mut prev_val: Option<Value>, prev_deci
 /// Inserts into the replicated store
 /// returns the previous value of this key on success
 pub async fn put(kv: KeyValue) -> Result<Option<KeyValue>,()> {
-    let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
     let mut prev_value = get(&kv.key);
+    let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
     let idx = rsm::append(RSMCommand::new_put(kv.clone())).await?;
 
     // read entries that were decided in the meantime, to get latest previous value
@@ -170,8 +170,8 @@ pub async fn put(kv: KeyValue) -> Result<Option<KeyValue>,()> {
 /// Inserts into the replicated store
 /// returns the previous value of this key on success
 pub async fn delete(key: Key) -> Result<Option<KeyValue>,()> {
-    let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
     let mut prev_value = get(&key);
+    let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
     let idx = rsm::append(RSMCommand::new_delete(key.clone())).await?;
 
     // read entries that were decided in the meantime, to get latest previous value
@@ -188,8 +188,8 @@ pub async fn clear() -> Result<(), ()> {
 /// Performs linearizable CAS operation
 /// returns the previous value of this key on success
 pub async fn cas(key: Key, new_value: Value, expected_value: Value) -> Result<Option<KeyValue>,()> {
-    let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
     let mut prev_value = get(&key);
+    let prev_idx = RSM::instance().lock().unwrap().omnipaxos.get_decided_idx();
     let idx = rsm::append(RSMCommand::new_cas(key.clone(), new_value.clone(), expected_value.clone())).await?;
 
     // read entries that were decided in the meantime, to get latest previous value
