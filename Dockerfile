@@ -2,7 +2,7 @@ FROM rust
 
 COPY . .
 
-RUN cargo install --path --features crash_recovery .
+RUN cargo install --features crash_recovery --path .
 
 EXPOSE 8080
 
