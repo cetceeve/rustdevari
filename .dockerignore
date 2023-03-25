@@ -1,3 +1,3 @@
 /target
-!/target/release/etcd
-!/target/debug/etcd
+!/target/release/rustdevari-etcd
+!/target/debug/rustdevari-etcd

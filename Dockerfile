@@ -1,8 +1,6 @@
-FROM rust
+FROM debian:bullseye-slim
 
-COPY . .
-
-RUN cargo install --features crash_recovery --path .
+COPY ./target/release/rustdevari-etcd /usr/bin/rustdevari-etcd
 
 EXPOSE 8080
 
