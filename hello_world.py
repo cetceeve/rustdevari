@@ -26,7 +26,7 @@ from time import sleep
 
 
 resp = requests.post("http://localhost:8082/clear")
-requests.get(f"http://localhost:8000/block_config?&mode=partitions&partitions=[[\"etcd1\"], [\"etcd2\", \"etcd3\"]]")
+# requests.get(f"http://localhost:8000/block_config?&mode=partitions&partitions=[[\"etcd1\"], [\"etcd2\", \"etcd3\"]]")
 resp = requests.put("http://localhost:8082/put", json={"key":"1", "value":"Hello World!"})
 print(resp.text)
 resp = requests.get("http://localhost:8082/linearizable/get/1")
@@ -38,5 +38,5 @@ try:
     print(resp.text)
 except:
     print("timed out")
-requests.get(f"http://localhost:8000/block_config?&mode=partitions&partitions=[[\"etcd1\", \"etcd2\", \"etcd3\"]]")
+# equests.get(f"http://localhost:8000/block_config?&mode=partitions&partitions=[[\"etcd1\", \"etcd2\", \"etcd3\"]]")
 resp = requests.post("http://localhost:8082/clear")

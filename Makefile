@@ -1,12 +1,12 @@
 build-full:
-	sudo docker build -t op-etcd .
+	docker build -t rustdevari-etcd .
 build-dev:
 	cargo build --release --features crash_recovery
-	sudo docker build -f DevDockerfile -t op-etcd .
+	docker build -f dev.Dockerfile -t rustdevari-etcd .
 build-dev-pl:
 	cargo build --features pl
-	sudo docker build -f DevDockerfile -t op-etcd .
+	docker build -f dev.Dockerfile -t rustdevari-etcd .
 run:
-	sudo docker-compose up --remove-orphans -V
+	docker compose up --remove-orphans -V
 dev: build-dev run
 full: build-full run

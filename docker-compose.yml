@@ -1,29 +1,8 @@
 version: "3.9"
 
 services:
-  ditm:
-    image: jonathanarns/ditm
-    container_name: ditm
-    hostname: ditm
-    environment:
-      CONTAINER_HOST_NAMES: etcd1,etcd2,etcd3
-    volumes:
-      - ./volumes/volumes:/volumes:z
-      - ./volumes/recordings:/recordings:Z
-      - ./volumes/snapshots:/snapshots:Z
-    ports:
-      - "8000:80"
-      - "5000:5000"
-    depends_on:
-      - etcd1
-      - etcd2
-      - etcd3
-    networks:
-      vpcbr:
-        ipv4_address: 10.5.0.10
-  
   etcd1:
-    image: op-etcd
+    image: rustdevari-etcd
     container_name: etcd1
     hostname: etcd1
     volumes:
@@ -36,16 +15,12 @@ services:
       - 8081:8080
     environment: 
       - RUST_BACKTRACE=1
-      - HTTP_PROXY=ditm:5000
       - PID=1
       - PEERS=2,3
       - PEER_DOMAINS=etcd2:8080,etcd3:8080
-    networks:
-      vpcbr:
-        ipv4_address: 10.5.0.2
 
   etcd2:
-    image: op-etcd
+    image: rustdevari-etcd
     container_name: etcd2
     hostname: etcd2
     volumes:
@@ -58,16 +33,12 @@ services:
       - 8082:8080
     environment: 
       - RUST_BACKTRACE=1
-      - HTTP_PROXY=ditm:5000
       - PID=2
       - PEERS=1,3
       - PEER_DOMAINS=etcd1:8080,etcd3:8080
-    networks:
-      vpcbr:
-        ipv4_address: 10.5.0.3
 
   etcd3:
-    image: op-etcd
+    image: rustdevari-etcd
     container_name: etcd3
     hostname: etcd3
     volumes:
@@ -80,18 +51,6 @@ services:
       - 8083:8080
     environment: 
       - RUST_BACKTRACE=1
-      - HTTP_PROXY=ditm:5000
       - PID=3
       - PEERS=1,2
       - PEER_DOMAINS=etcd1:8080,etcd2:8080
-    networks:
-      vpcbr:
-        ipv4_address: 10.5.0.4
-
-networks:
-  vpcbr:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.5.0.0/16
-          gateway: 10.5.0.1

@@ -6,4 +6,4 @@ RUN cargo install --features crash_recovery --path .
 
 EXPOSE 8080
 
-CMD ["etcd"]
+CMD ["rustdevari-etcd"]
