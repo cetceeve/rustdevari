@@ -44,5 +44,5 @@ except Exception as e:
     pass
 
 # check linearizability
-if wing_gong(trace):
+if not wing_gong(trace):
     exit(1)
