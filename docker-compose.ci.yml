@@ -23,7 +23,7 @@ services:
         ipv4_address: 10.5.0.10
   
   etcd1:
-    image: op-etcd
+    image: rustdevari-etcd
     container_name: etcd1
     hostname: etcd1
     volumes:
@@ -45,7 +45,7 @@ services:
         ipv4_address: 10.5.0.2
 
   etcd2:
-    image: op-etcd
+    image: rustdevari-etcd
     container_name: etcd2
     hostname: etcd2
     volumes:
@@ -67,7 +67,7 @@ services:
         ipv4_address: 10.5.0.3
 
   etcd3:
-    image: op-etcd
+    image: rustdevari-etcd
     container_name: etcd3
     hostname: etcd3
     volumes:
