@@ -27,6 +27,6 @@ jobs:
     - name: Start cluster
       uses: isbang/compose-action@v1.4.1
       with:
-        compose-file: "./docker/docker-compose.ci.yml"
+        compose-file: "./docker-compose.ci.yml"
     - name: Run test
-      run: python3 .tests/snapshot_test.py
+      run: python3 ./tests/snapshot_test.py
